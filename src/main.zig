@@ -42,6 +42,11 @@ pub fn main() anyerror!void {
         //----------------------------------------------------------------------------------
         // TODO: Update your variables here
         //----------------------------------------------------------------------------------
+
+        if (rl.isKeyPressed(rl.KeyboardKey.key_p)) {
+            rl.takeScreenshot("resutl.png");
+        }
+
         if (rl.isKeyPressed(rl.KeyboardKey.key_space)) {
             try board.testFF(allocator);
         }
