@@ -90,9 +90,9 @@ const Direction = struct {
 };
 
 // TotalXSize, TotalYSize 是奇数
-pub const TotalXSize = 61;
-pub const TotalYSize = 61;
-pub const Scale = 30;
+pub const TotalXSize = 40;
+pub const TotalYSize = 40;
+pub const Scale = 1;
 const RoomMaxSize = 7;
 
 const C = rl.Color;
@@ -206,29 +206,6 @@ fn line_intersection_test(x0: i32, x0size: i32, x1: i32, x1size: i32) bool {
     }
 }
 
-pub const RoomList = std.ArrayList(Room);
-pub const GenRoomMaxTestTimes = 13040;
-
-pub fn genRoomList(roomList: *RoomList) !void {
-    roomList.clearAndFree();
-    for (0..GenRoomMaxTestTimes) |_| {
-        const tmp1 = Room.genRoom();
-        if (tmp1) |tmp| {
-            var isIntersection = false;
-            blk: for (roomList.items) |value| {
-                if (value.room_intersection_test(tmp)) {
-                    isIntersection = true;
-                    break :blk;
-                } else {
-                    continue;
-                }
-            }
-
-            if (!isIntersection) try roomList.append(tmp);
-        }
-    }
-}
-
 pub const Tag = union(enum) {
     room: struct {
         id: usize,
@@ -297,30 +274,48 @@ pub const IndexAndDirection = struct {
     direction: Direction,
 };
 
+const Stage = enum {
+    clean,
+    generateRoom,
+    floodFill,
+    findConnPoint,
+    generateTree,
+    removeSingle,
+};
+
 const TwoPartMap = std.AutoHashMap([2]usize, std.ArrayList(Index));
 const IdPeers = std.AutoHashMap(usize, std.AutoHashMap(usize, void));
 const IdConnPoints = std.AutoHashMap(usize, std.ArrayList(Index));
 const SelectedIds = std.AutoHashMap(usize, void);
 const SelectedConnPoints = std.AutoHashMap(Index, void);
+const StageTimeMap = std.AutoHashMap(Stage, i64);
+const RoomList = std.ArrayList(Room);
+const GenRoomMaxTestTimes = TotalXSize * TotalYSize / 2;
 
 pub const Board = struct {
     board: *[TotalYSize][TotalXSize]Tag,
+    roomList: RoomList,
     twoPartMap: TwoPartMap = undefined,
     idPeers: IdPeers = undefined,
     idConnPoints: IdConnPoints = undefined,
+    stageTimeMap: StageTimeMap,
 
     const Self = @This();
 
     pub fn init(allocator: Allocator) !Board {
         const board = try allocator.create([TotalYSize][TotalXSize]Tag);
+        const roomList = RoomList.init(allocator);
         const tpm = TwoPartMap.init(allocator);
         const idp = IdPeers.init(allocator);
         const idcp = IdConnPoints.init(allocator);
+        const stageTimeMap = StageTimeMap.init(allocator);
         return Board{
             .board = board,
+            .roomList = roomList,
             .twoPartMap = tpm,
             .idPeers = idp,
             .idConnPoints = idcp,
+            .stageTimeMap = stageTimeMap,
         };
     }
 
@@ -362,10 +357,13 @@ pub const Board = struct {
         self.twoPartMap.clearAndFree();
         self.idPeers.deinit();
         self.idConnPoints.deinit();
+        self.stageTimeMap.deinit();
+        self.roomList.deinit();
         allocator.destroy(self.board);
     }
 
     pub fn testFF(self: *Self, allocator: Allocator) !void {
+        const t0 = std.time.milliTimestamp();
         {
             self.cleanBoard();
             var iter = self.twoPartMap.valueIterator();
@@ -385,15 +383,19 @@ pub const Board = struct {
             self.twoPartMap.clearAndFree();
             self.idPeers.clearAndFree();
             self.idConnPoints.clearAndFree();
+            self.stageTimeMap.clearAndFree();
+            self.roomList.clearAndFree();
         }
+        const t1 = std.time.milliTimestamp();
+        try self.stageTimeMap.put(.clean, t1 - t0);
 
+        const t2 = std.time.milliTimestamp();
         var globalVal: usize = 0;
-        var roomList = RoomList.init(allocator);
-        defer roomList.deinit();
+        try self.genRoomList(&globalVal);
+        const t3 = std.time.milliTimestamp();
+        try self.stageTimeMap.put(.generateRoom, t3 - t2);
 
-        try genRoomList(&roomList);
-        self.applayRoomList(&roomList, &globalVal);
-
+        const t4 = std.time.milliTimestamp();
         var stack = Stack(IndexAndDirection).init(allocator);
         defer stack.clean();
         for (1..TotalYSize) |y| {
@@ -410,17 +412,23 @@ pub const Board = struct {
                 }
             }
         }
+        const t5 = std.time.milliTimestamp();
+        try self.stageTimeMap.put(.floodFill, t5 - t4);
 
+        const t6 = std.time.milliTimestamp();
         try findConnPoint(self, allocator);
+        const t7 = std.time.milliTimestamp();
+        try self.stageTimeMap.put(.findConnPoint, t7 - t6);
 
+        const t8 = std.time.milliTimestamp();
         var selecIds = SelectedIds.init(allocator);
         defer selecIds.deinit();
         var selecConnPoints = SelectedConnPoints.init(allocator);
         defer selecConnPoints.deinit();
 
-        const rsize: i32 = @intCast(roomList.items.len);
+        const rsize: i32 = @intCast(self.roomList.items.len);
         const v: usize = @intCast(rl.getRandomValue(0, rsize - 1));
-        const troom = roomList.items[v];
+        const troom = self.roomList.items[v];
         const kx: usize = @intCast(troom.pos.x);
         const ky: usize = @intCast(troom.pos.y);
         const rid = self.board[ky][kx].room.id;
@@ -435,12 +443,64 @@ pub const Board = struct {
             globalVal,
             allocator,
         );
+        const t9 = std.time.milliTimestamp();
+        try self.stageTimeMap.put(.generateTree, t9 - t8);
 
+        const t10 = std.time.milliTimestamp();
         for (1..TotalYSize) |y| {
             for (1..TotalXSize) |x| {
                 var idx: Index = .{ .x = x, .y = y };
                 while (self.surrSum(idx)) |nIdx| {
                     idx = nIdx;
+                }
+            }
+        }
+        const t11 = std.time.milliTimestamp();
+        try self.stageTimeMap.put(.removeSingle, t11 - t10);
+
+        var total: f32 = 0;
+        var iter0 = self.stageTimeMap.iterator();
+
+        while (iter0.next()) |ent| {
+            total += @floatFromInt(ent.value_ptr.*);
+        }
+
+        var iter = self.stageTimeMap.iterator();
+        std.debug.print("=============\n", .{});
+        while (iter.next()) |ent| {
+            const vv: f64 = @floatFromInt(ent.value_ptr.*);
+            std.debug.print(
+                "p: {d:.2}, key: {}, val: {}\n",
+                .{
+                    vv / total,
+                    ent.key_ptr.*,
+                    ent.value_ptr.*,
+                },
+            );
+        }
+    }
+
+    pub fn genRoomList(self: *Self, globalVal: *usize) !void {
+        blk: for (0..GenRoomMaxTestTimes) |_| {
+            if (Room.genRoom()) |room| {
+                const ty: usize = @intCast(room.pos.y);
+                const tx: usize = @intCast(room.pos.x);
+                for (0..@intCast(room.size.ySize)) |dy| {
+                    for (0..@intCast(room.size.xSize)) |dx| {
+                        if (self.board[ty + dy][tx + dx] != .blank) continue :blk;
+                    }
+                }
+                try self.roomList.append(room);
+                globalVal.* += 1;
+
+                for (0..@intCast(room.size.ySize)) |dy| {
+                    for (0..@intCast(room.size.xSize)) |dx| {
+                        self.board[ty + dy][tx + dx] =
+                            .{ .room = .{
+                            .id = globalVal.*,
+                            .color = room.color,
+                        } };
+                    }
                 }
             }
         }
@@ -648,22 +708,6 @@ pub const Board = struct {
         for (0..TotalYSize) |y| {
             for (0..TotalXSize) |x| {
                 self.board[y][x] = .blank;
-            }
-        }
-    }
-
-    pub fn applayRoomList(self: *Self, roomList: *RoomList, globalVal: *usize) void {
-        for (roomList.items) |room| {
-            globalVal.* += 1;
-            const ty: usize = @intCast(room.pos.y);
-            const tx: usize = @intCast(room.pos.x);
-            for (0..@intCast(room.size.ySize)) |dy| {
-                for (0..@intCast(room.size.xSize)) |dx| {
-                    self.board[ty + dy][tx + dx] = .{ .room = .{
-                        .id = globalVal.*,
-                        .color = room.color,
-                    } };
-                }
             }
         }
     }

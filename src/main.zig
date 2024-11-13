@@ -6,8 +6,8 @@ const Room = mazes.Room;
 pub fn main() anyerror!void {
     // Initialization
     //--------------------------------------------------------------------------------------
-    const screenWidth = mazes.TotalXSize * mazes.Scale;
-    const screenHeight = mazes.TotalYSize * mazes.Scale;
+    const screenWidth = 1000; // mazes.TotalXSize * mazes.Scale;
+    const screenHeight = 1000; //mazes.TotalYSize * mazes.Scale;
 
     rl.initWindow(screenWidth, screenHeight, "raylib-zig [core] example - basic window");
     defer rl.closeWindow(); // Close window and OpenGL context
@@ -70,8 +70,8 @@ pub fn main() anyerror!void {
             // Draw ground
             rl.drawPlane(rl.Vector3.init(0, 0, 0), rl.Vector2.init(6400, 6400), rl.Color.light_gray);
 
-            for (0..mazes.TotalYSize) |y| {
-                for (0..mazes.TotalXSize) |x| {
+            for (0..@min(mazes.TotalYSize, 100)) |y| {
+                for (0..@min(mazes.TotalXSize, 100)) |x| {
                     const tag = board.board[y][x];
                     switch (tag) {
                         .blank => {},
