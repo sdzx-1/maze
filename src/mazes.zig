@@ -90,8 +90,8 @@ const Direction = struct {
 };
 
 // TotalXSize, TotalYSize 是奇数
-pub const TotalXSize = 40;
-pub const TotalYSize = 40;
+pub const TotalXSize = 41;
+pub const TotalYSize = 41;
 pub const Scale = 1;
 const RoomMaxSize = 7;
 
