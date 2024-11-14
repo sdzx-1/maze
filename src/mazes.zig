@@ -150,6 +150,14 @@ pub const Index = struct {
     x: i32,
     y: i32,
 
+    pub inline fn eq(self: Index, other: Index) bool {
+        if (self.x == other.x and self.y == other.y) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
     pub inline fn from_uszie_xy(x: usize, y: usize) Index {
         return .{ .x = @intCast(x), .y = @intCast(y) };
     }
@@ -223,8 +231,6 @@ const StageTimeMap = struct {
     }
 };
 
-const TwoPartMap = std.AutoHashMap([2]usize, std.ArrayList(Index));
-const IdPeers = std.AutoHashMap(usize, std.AutoHashMap(usize, void));
 const IdConnPoints = std.AutoHashMap(usize, std.ArrayList(Index));
 const SelectedIds = std.AutoHashMap(usize, void);
 const SelectedConnPoints = std.AutoHashMap(Index, void);
@@ -234,8 +240,6 @@ const GenRoomMaxTestTimes = TotalXSize * TotalYSize / 2;
 pub const Board = struct {
     board: *[TotalYSize][TotalXSize]Tag,
     roomList: RoomList,
-    twoPartMap: TwoPartMap,
-    idPeers: IdPeers,
     idConnPoints: IdConnPoints,
     stageTimeMap: StageTimeMap,
     globalCounter: usize,
@@ -246,15 +250,11 @@ pub const Board = struct {
     pub fn init(allocator: Allocator, seed: u64) !Board {
         const board = try allocator.create([TotalYSize][TotalXSize]Tag);
         const roomList = RoomList.init(allocator);
-        const tpm = TwoPartMap.init(allocator);
-        const idp = IdPeers.init(allocator);
         const idcp = IdConnPoints.init(allocator);
         const xx = Xoroshiro.init(seed);
         return Board{
             .board = board,
             .roomList = roomList,
-            .twoPartMap = tpm,
-            .idPeers = idp,
             .idConnPoints = idcp,
             .stageTimeMap = undefined,
             .globalCounter = 0,
@@ -279,33 +279,11 @@ pub const Board = struct {
         }
     }
 
-    pub fn idPeersInsert(self: *Self, a: usize, b: usize, allocator: Allocator) !void {
-        if (self.idPeers.getPtr(a)) |hmp| {
-            try hmp.put(b, {});
-        } else {
-            var thmp = std.AutoHashMap(usize, void).init(allocator);
-            try thmp.put(b, {});
-            try self.idPeers.put(a, thmp);
-        }
-    }
-
     pub fn dinit(self: *Self, allocator: Allocator) void {
-        var iter = self.twoPartMap.valueIterator();
-        while (iter.next()) |v| {
-            v.clearAndFree();
-        }
-
-        var iter1 = self.idPeers.valueIterator();
-        while (iter1.next()) |v| {
-            v.clearAndFree();
-        }
-
         var iter2 = self.idConnPoints.valueIterator();
         while (iter2.next()) |v| {
             v.clearAndFree();
         }
-        self.twoPartMap.clearAndFree();
-        self.idPeers.deinit();
         self.idConnPoints.deinit();
         self.stageTimeMap.clean();
         self.roomList.deinit();
@@ -316,22 +294,11 @@ pub const Board = struct {
         {
             self.cleanBoard();
             self.globalCounter = 0;
-            var iter = self.twoPartMap.valueIterator();
-            while (iter.next()) |v| {
-                v.clearAndFree();
-            }
-
-            var iter1 = self.idPeers.valueIterator();
-            while (iter1.next()) |v| {
-                v.clearAndFree();
-            }
 
             var iter2 = self.idConnPoints.valueIterator();
             while (iter2.next()) |v| {
                 v.clearAndFree();
             }
-            self.twoPartMap.clearAndFree();
-            self.idPeers.clearAndFree();
             self.idConnPoints.clearAndFree();
             self.stageTimeMap.clean();
             self.roomList.clearAndFree();
@@ -390,8 +357,6 @@ pub const Board = struct {
         try self.genTree(
             &selecIds,
             &selecConnPoints,
-            self.globalCounter,
-            allocator,
             random,
         );
         const t9 = std.time.milliTimestamp();
@@ -557,11 +522,9 @@ pub const Board = struct {
         self: *Self,
         sIdSet: *SelectedIds,
         sConnPointSet: *SelectedConnPoints,
-        globalVal: usize,
-        allocator: Allocator,
         random: std.Random,
     ) !void {
-        while (sIdSet.count() < globalVal) {
+        while (sConnPointSet.count() != 0) {
             var iter = sConnPointSet.keyIterator();
             const sedConnIndex = iter.next().?.*;
             const tmpv = self.readBoard(sedConnIndex).connPoint;
@@ -576,50 +539,20 @@ pub const Board = struct {
 
             const connPs = self.idConnPoints.get(newId).?;
             for (connPs.items) |cp| {
-                try sConnPointSet.put(cp, {});
-            }
-
-            const peersPtr = self.idPeers.getPtr(newId).?;
-            const intersectionList = try intersection(
-                allocator,
-                newId,
-                peersPtr,
-                sIdSet,
-            );
-            defer intersectionList.deinit();
-
-            try sIdSet.put(newId, {});
-
-            for (intersectionList.items) |arr2| {
-                const tap = self.twoPartMap.getPtr(arr2).?;
-                for (tap.*.items) |idx| {
-                    _ = sConnPointSet.remove(idx);
-
-                    if (sedConnIndex.y == idx.y and sedConnIndex.x == idx.x) {} else {
+                if (sConnPointSet.get(cp)) |_| {
+                    _ = sConnPointSet.remove(cp);
+                    if (cp.eq(sedConnIndex)) {} else {
                         const tmpk = random.intRangeAtMost(i32, 1, 100);
                         if (tmpk > 97) {} else {
-                            self.writeBoard(idx, .blank);
+                            self.writeBoard(cp, .blank);
                         }
                     }
+                } else {
+                    try sConnPointSet.put(cp, {});
                 }
             }
+            try sIdSet.put(newId, {});
         }
-    }
-
-    fn intersection(
-        allocaotr: Allocator,
-        newId: usize,
-        peersPtr: *std.AutoHashMap(usize, void),
-        sIdSet: *SelectedIds,
-    ) !std.ArrayList([2]usize) {
-        var cpList = std.ArrayList([2]usize).init(allocaotr);
-        var pn = peersPtr.keyIterator();
-        while (pn.next()) |p| {
-            if (sIdSet.get(p.*)) |_| {
-                try cpList.append([2]usize{ @min(newId, p.*), @max(newId, p.*) });
-            }
-        }
-        return cpList;
     }
 
     pub fn findConnPoint(self: *Self, allocator: Allocator) !void {
@@ -656,15 +589,6 @@ pub const Board = struct {
                         @min(v0, v1),
                         @max(v0, v1),
                     };
-                    if (self.twoPartMap.getPtr(tArr)) |arr| {
-                        try arr.append(idx);
-                    } else {
-                        var barr = std.ArrayList(Index).init(allocator);
-                        try barr.append(idx);
-                        try self.twoPartMap.put(tArr, barr);
-                    }
-                    try self.idPeersInsert(v0, v1, allocator);
-                    try self.idPeersInsert(v1, v0, allocator);
                     try self.idConnPointsInsert(v0, idx, allocator);
                     try self.idConnPointsInsert(v1, idx, allocator);
 
