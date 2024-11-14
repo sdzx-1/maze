@@ -147,13 +147,25 @@ pub const Tag = union(enum) {
 };
 
 pub const Index = struct {
-    x: usize,
-    y: usize,
+    x: i32,
+    y: i32,
 
-    pub fn addDirection(self: Index, di: Direction) Index {
+    pub inline fn from_uszie_xy(x: usize, y: usize) Index {
+        return .{ .x = @intCast(x), .y = @intCast(y) };
+    }
+
+    pub inline fn inBoard(self: Index) bool {
+        if (self.x < 0 or self.x >= TotalXSize or self.y < 0 or self.y >= TotalYSize) {
+            return false;
+        } else {
+            return true;
+        }
+    }
+
+    pub inline fn addDirection(self: Index, di: Direction) Index {
         return .{
-            .x = @intCast(di.dirX + @as(i32, @intCast(self.x))),
-            .y = @intCast(di.dirY + @as(i32, @intCast(self.y))),
+            .x = di.dirX + self.x,
+            .y = di.dirY + self.y,
         };
     }
 };
@@ -250,6 +262,13 @@ pub const Board = struct {
         };
     }
 
+    pub inline fn writeBoard(self: *Self, idx: Index, tag: Tag) void {
+        self.board[@as(usize, @intCast(idx.y))][@as(usize, @intCast(idx.x))] = tag;
+    }
+
+    pub inline fn readBoard(self: *const Self, idx: Index) Tag {
+        return self.board[@as(usize, @intCast(idx.y))][@as(usize, @intCast(idx.x))];
+    }
     pub fn idConnPointsInsert(self: *Self, a: usize, b: Index, allocator: Allocator) !void {
         if (self.idConnPoints.getPtr(a)) |hmp| {
             try hmp.append(b);
@@ -331,7 +350,7 @@ pub const Board = struct {
         defer stack.clean();
         for (1..TotalYSize) |y| {
             for (1..TotalXSize) |x| {
-                const index: Index = .{ .x = x, .y = y };
+                const index = Index.from_uszie_xy(x, y);
                 if (checkSurrEight(self, index)) {
                     stack.clean();
                     try stack.push(.{
@@ -381,7 +400,7 @@ pub const Board = struct {
         const t10 = std.time.milliTimestamp();
         for (1..TotalYSize) |y| {
             for (1..TotalXSize) |x| {
-                var idx: Index = .{ .x = x, .y = y };
+                var idx = Index.from_uszie_xy(x, y);
                 while (self.surrSum(idx)) |nIdx| {
                     idx = nIdx;
                 }
@@ -511,20 +530,15 @@ pub const Board = struct {
     }
 
     pub fn surrSum(self: *Self, idx: Index) ?Index {
-        switch (self.board[idx.y][idx.x]) {
+        switch (self.readBoard(idx)) {
             .blank, .room => return null,
             .path, .connPoint => {
                 var total: i32 = 0;
                 var tmp: Index = undefined;
                 for (Direction.Four_directions) |dir| {
-                    const nx = @as(i32, @intCast(idx.x)) + dir.dirX;
-                    const ny = @as(i32, @intCast(idx.y)) + dir.dirY;
-                    if (nx < 0 or nx >= TotalXSize or ny < 0 or ny >= TotalYSize) continue;
-                    const x: usize = @intCast(nx);
-                    const y: usize = @intCast(ny);
-                    const nIdx: Index = .{ .x = x, .y = y };
-                    const tag = self.board[y][x];
-                    switch (tag) {
+                    const nIdx = idx.addDirection(dir);
+                    if (!nIdx.inBoard()) continue;
+                    switch (self.readBoard(nIdx)) {
                         .room, .path, .connPoint => {
                             tmp = nIdx;
                             total += 1;
@@ -533,7 +547,7 @@ pub const Board = struct {
                     }
                 }
                 if (total == 1) {
-                    self.board[idx.y][idx.x] = .blank;
+                    self.writeBoard(idx, .blank);
                     return tmp;
                 }
                 return null;
@@ -552,7 +566,7 @@ pub const Board = struct {
         while (sIdSet.count() < globalVal) {
             var iter = sConnPointSet.keyIterator();
             const sedConnIndex = iter.next().?.*;
-            const tmpv = self.board[sedConnIndex.y][sedConnIndex.x].connPoint;
+            const tmpv = self.readBoard(sedConnIndex).connPoint;
             var newId: usize = undefined;
             if (sIdSet.get(tmpv[0])) |_| {
                 newId = tmpv[1];
@@ -586,7 +600,7 @@ pub const Board = struct {
                     if (sedConnIndex.y == idx.y and sedConnIndex.x == idx.x) {} else {
                         const tmpk = random.intRangeAtMost(i32, 1, 100);
                         if (tmpk > 97) {} else {
-                            self.board[idx.y][idx.x] = .blank;
+                            self.writeBoard(idx, .blank);
                         }
                     }
                 }
@@ -613,15 +627,15 @@ pub const Board = struct {
     pub fn findConnPoint(self: *Self, allocator: Allocator) !void {
         for (1..TotalYSize) |y| {
             for (1..TotalXSize) |x| {
-                if (self.board[y][x] != .blank) continue;
+                const idx = Index.from_uszie_xy(x, y);
+                if (self.readBoard(idx) != .blank) continue;
                 var result: i32 = 0;
                 var idArr: [4]usize = undefined;
                 var idIndex: usize = 0;
                 for (Direction.Four_directions) |dir| {
-                    const nx = @as(i32, @intCast(x)) + dir.dirX;
-                    const ny = @as(i32, @intCast(y)) + dir.dirY;
-                    if (nx < 0 or nx >= TotalXSize or ny < 0 or ny >= TotalYSize) continue;
-                    switch (self.board[@as(usize, @intCast(ny))][@as(usize, @intCast(nx))]) {
+                    const nIdx = idx.addDirection(dir);
+                    if (!nIdx.inBoard()) continue;
+                    switch (self.readBoard(nIdx)) {
                         .room => |r| {
                             idArr[idIndex] = r.id;
                             idIndex += 1;
@@ -644,18 +658,17 @@ pub const Board = struct {
                         @min(v0, v1),
                         @max(v0, v1),
                     };
-                    const tIndex = Index{ .x = x, .y = y };
                     if (self.twoPartMap.getPtr(tArr)) |arr| {
-                        try arr.append(.{ .x = x, .y = y });
+                        try arr.append(idx);
                     } else {
                         var barr = std.ArrayList(Index).init(allocator);
-                        try barr.append(.{ .x = x, .y = y });
+                        try barr.append(idx);
                         try self.twoPartMap.put(tArr, barr);
                     }
                     try self.idPeersInsert(v0, v1, allocator);
                     try self.idPeersInsert(v1, v0, allocator);
-                    try self.idConnPointsInsert(v0, tIndex, allocator);
-                    try self.idConnPointsInsert(v1, tIndex, allocator);
+                    try self.idConnPointsInsert(v0, idx, allocator);
+                    try self.idConnPointsInsert(v1, idx, allocator);
 
                     self.board[y][x] = .{ .connPoint = tArr };
                 }
@@ -666,26 +679,24 @@ pub const Board = struct {
     pub fn floodFilling(self: *Self, stack: *Stack(IndexAndDirection)) !void {
         const K = Direction.Direction_of_widening_and_thickening;
         blk0: while (stack.pop()) |start| {
-            if (self.board[start.index.y][start.index.x] != .blank) continue;
+            if (self.readBoard(start.index) != .blank) continue;
             const ti = dirToI(start.direction);
             const tdirs = K[ti];
 
             for (tdirs) |dir| {
-                const nx = @as(i32, @intCast(start.index.x)) + dir.dirX;
-                const ny = @as(i32, @intCast(start.index.y)) + dir.dirY;
-                if (nx < 0 or nx >= TotalXSize or ny < 0 or ny >= TotalYSize) continue :blk0;
-                if (self.board[@as(usize, @intCast(ny))][@as(usize, @intCast(nx))] != .blank) continue :blk0;
+                const nIndex = start.index.addDirection(dir);
+                if (!nIndex.inBoard()) continue :blk0;
+                if (self.readBoard(nIndex) != .blank) continue :blk0;
             }
 
-            self.board[start.index.y][start.index.x] = .{ .path = .{ .id = self.globalCounter } };
+            self.writeBoard(start.index, .{ .path = .{ .id = self.globalCounter } });
 
             for (0..4) |i| {
                 const dirs = K[@mod(ti + i + 1, 4)];
                 const dir = dirs[0];
-                const nx = @as(i32, @intCast(start.index.x)) + dir.dirX;
-                const ny = @as(i32, @intCast(start.index.y)) + dir.dirY;
-                if (nx < 0 or nx >= TotalXSize or ny < 0 or ny >= TotalYSize) continue;
-                if (self.board[@as(usize, @intCast(ny))][@as(usize, @intCast(nx))] != .blank) continue;
+                const nIndex = start.index.addDirection(dir);
+                if (!nIndex.inBoard()) continue;
+                if (self.readBoard(nIndex) != .blank) continue;
                 const np = start.index.addDirection(dir);
                 try stack.push(.{ .index = np, .direction = dir });
             }
@@ -694,14 +705,11 @@ pub const Board = struct {
 
     // Check if the surrounding eight positions are blank
     pub fn checkSurrEight(self: *const Self, index: Index) bool {
-        const x = index.x;
-        const y = index.y;
-        if (self.board[y][x] != .blank) return false;
+        if (self.readBoard(index) != .blank) return false;
         for (Direction.Eight_directions) |dir| {
-            const nx = @as(i32, @intCast(x)) + dir.dirX;
-            const ny = @as(i32, @intCast(y)) + dir.dirY;
-            if (nx < 0 or nx >= TotalXSize or ny < 0 or ny >= TotalYSize) return false;
-            if (self.board[@as(usize, @intCast(ny))][@as(usize, @intCast(nx))] != .blank) return false;
+            const nIndex = index.addDirection(dir);
+            if (!nIndex.inBoard()) return false;
+            if (self.readBoard(nIndex) != .blank) return false;
         }
         return true;
     }

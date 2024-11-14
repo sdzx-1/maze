@@ -44,7 +44,7 @@ pub fn main() anyerror!void {
         //----------------------------------------------------------------------------------
 
         if (rl.isKeyPressed(rl.KeyboardKey.key_p)) {
-            rl.takeScreenshot("resutl.png");
+            rl.takeScreenshot("result.png");
         }
 
         if (rl.isKeyPressed(rl.KeyboardKey.key_space)) {
