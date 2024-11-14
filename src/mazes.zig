@@ -93,8 +93,8 @@ const Direction = struct {
 };
 
 // TotalXSize, TotalYSize 是奇数
-pub const TotalXSize = 41;
-pub const TotalYSize = 41;
+pub const TotalXSize = 1641;
+pub const TotalYSize = 1641;
 pub const Scale = 1;
 const RoomMaxSize = 7;
 
@@ -278,12 +278,12 @@ pub const IndexAndDirection = struct {
 };
 
 const Stage = enum {
-    clean,
     generateRoom,
     floodFill,
     findConnPoint,
     generateTree,
     removeSingle,
+    totalTime,
 };
 
 const TwoPartMap = std.AutoHashMap([2]usize, std.ArrayList(Index));
@@ -291,7 +291,7 @@ const IdPeers = std.AutoHashMap(usize, std.AutoHashMap(usize, void));
 const IdConnPoints = std.AutoHashMap(usize, std.ArrayList(Index));
 const SelectedIds = std.AutoHashMap(usize, void);
 const SelectedConnPoints = std.AutoHashMap(Index, void);
-const StageTimeMap = std.AutoHashMap(Stage, i64);
+const StageTimeMap = std.AutoArrayHashMap(Stage, i64);
 const RoomList = std.ArrayList(Room);
 const GenRoomMaxTestTimes = TotalXSize * TotalYSize / 2;
 
@@ -368,7 +368,6 @@ pub const Board = struct {
     }
 
     pub fn testFF(self: *Self, allocator: Allocator) !void {
-        const t0 = std.time.milliTimestamp();
         {
             self.cleanBoard();
             self.globalCounter = 0;
@@ -392,8 +391,6 @@ pub const Board = struct {
             self.stageTimeMap.clearAndFree();
             self.roomList.clearAndFree();
         }
-        const t1 = std.time.milliTimestamp();
-        try self.stageTimeMap.put(.clean, t1 - t0);
 
         const t2 = std.time.milliTimestamp();
         try self.genRoomList();
@@ -463,26 +460,29 @@ pub const Board = struct {
         const t11 = std.time.milliTimestamp();
         try self.stageTimeMap.put(.removeSingle, t11 - t10);
 
-        var total: f32 = 0;
-        var iter0 = self.stageTimeMap.iterator();
+        try self.stageTimeMap.put(.totalTime, t11 - t2);
 
-        while (iter0.next()) |ent| {
-            total += @floatFromInt(ent.value_ptr.*);
-        }
+        const totalTime: f32 = @floatFromInt(self.stageTimeMap.get(.totalTime).?);
 
         var iter = self.stageTimeMap.iterator();
         std.debug.print("=============\n", .{});
         while (iter.next()) |ent| {
-            const vv: f64 = @floatFromInt(ent.value_ptr.*);
-            std.debug.print(
-                "p: {d:.2}, key: {}, val: {}\n",
-                .{
-                    vv / total,
-                    ent.key_ptr.*,
-                    ent.value_ptr.*,
+            switch (ent.key_ptr.*) {
+                .totalTime => {},
+                else => {
+                    const vv: f64 = @floatFromInt(ent.value_ptr.*);
+                    std.debug.print(
+                        "p: {d:.2}, key: {}, val: {d}ms\n",
+                        .{
+                            vv / totalTime,
+                            ent.key_ptr.*,
+                            ent.value_ptr.*,
+                        },
+                    );
                 },
-            );
+            }
         }
+        std.debug.print("total time: {d}ms\n", .{totalTime});
     }
 
     pub fn genRoomList(self: *Self) !void {
