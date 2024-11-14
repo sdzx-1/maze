@@ -140,9 +140,9 @@ pub const Room = struct {
 };
 
 pub const Tag = union(enum) {
-    room: struct { id: usize },
+    room: usize,
     blank,
-    path: struct { id: usize },
+    path: usize,
     connPoint: [2]usize,
 };
 
@@ -381,7 +381,7 @@ pub const Board = struct {
         const troom = self.roomList.items[v];
         const kx: usize = @intCast(troom.pos.x);
         const ky: usize = @intCast(troom.pos.y);
-        const rid = self.board[ky][kx].room.id;
+        const rid = self.board[ky][kx].room;
 
         try selecIds.put(rid, {});
         for (self.idConnPoints.get(rid).?.items) |value| {
@@ -520,9 +520,7 @@ pub const Board = struct {
                 for (0..@intCast(room.size.ySize)) |dy| {
                     for (0..@intCast(room.size.xSize)) |dx| {
                         self.board[ty + dy][tx + dx] =
-                            .{ .room = .{
-                            .id = self.globalCounter,
-                        } };
+                            .{ .room = self.globalCounter };
                     }
                 }
             }
@@ -637,12 +635,12 @@ pub const Board = struct {
                     if (!nIdx.inBoard()) continue;
                     switch (self.readBoard(nIdx)) {
                         .room => |r| {
-                            idArr[idIndex] = r.id;
+                            idArr[idIndex] = r;
                             idIndex += 1;
                             result += 100;
                         },
                         .path => |r| {
-                            idArr[idIndex] = r.id;
+                            idArr[idIndex] = r;
                             idIndex += 1;
                             result += 1;
                         },
@@ -689,7 +687,7 @@ pub const Board = struct {
                 if (self.readBoard(nIndex) != .blank) continue :blk0;
             }
 
-            self.writeBoard(start.index, .{ .path = .{ .id = self.globalCounter } });
+            self.writeBoard(start.index, .{ .path = self.globalCounter });
 
             for (0..4) |i| {
                 const dirs = K[@mod(ti + i + 1, 4)];
