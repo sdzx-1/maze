@@ -287,7 +287,7 @@ const Stage = enum {
 
     const Self = @This();
 
-    pub fn to_usize(self: Self) usize {
+    pub inline fn to_usize(self: Self) usize {
         return @intFromEnum(self);
     }
 };
