@@ -6,7 +6,7 @@ const Allocator = std.mem.Allocator;
 const Value = std.json.Value;
 const Xoroshiro = std.Random.Xoroshiro128;
 
-pub const IsTestPerformance = false;
+pub const IsTestPerformance = true;
 // TotalXSize, TotalYSize 是奇数
 pub const TotalXSize = if (IsTestPerformance) 2041 else 241;
 pub const TotalYSize = if (IsTestPerformance) 2041 else 241;
@@ -577,11 +577,14 @@ pub const Board = struct {
                             idIndex += 1;
                             result += 1;
                         },
+                        .connPoint => |_| {
+                            result += 3;
+                        },
                         else => result += 0,
                     }
                 }
 
-                if (result >= 101) {
+                if (result == 101 or result == 200) {
                     const v0 = idArr[0];
                     const v1 = idArr[1];
 

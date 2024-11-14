@@ -24,6 +24,10 @@ pub fn build(b: *std.Build) void {
     const raygui = raylib_dep.module("raygui"); // raygui module
     const raylib_artifact = raylib_dep.artifact("raylib"); // raylib C library
 
+    const zigimg_dependency = b.dependency("zigimg", .{
+        .target = target,
+        .optimize = optimize,
+    });
     // add check
     const exe_check = b.addExecutable(.{
         .name = "foo",
@@ -35,6 +39,7 @@ pub fn build(b: *std.Build) void {
     exe_check.linkLibrary(raylib_artifact);
     exe_check.root_module.addImport("raylib", raylib);
     exe_check.root_module.addImport("raygui", raygui);
+    exe_check.root_module.addImport("zigimg", zigimg_dependency.module("zigimg"));
     const check = b.step("check", "Check if foo compiles");
     check.dependOn(&exe_check.step);
 
@@ -49,6 +54,8 @@ pub fn build(b: *std.Build) void {
     exe.linkLibrary(raylib_artifact);
     exe.root_module.addImport("raylib", raylib);
     exe.root_module.addImport("raygui", raygui);
+
+    exe.root_module.addImport("zigimg", zigimg_dependency.module("zigimg"));
 
     // This declares intent for the executable to be installed into the
     // standard location when the user invokes the "install" step (the default

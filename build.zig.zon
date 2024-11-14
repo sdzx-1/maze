@@ -51,6 +51,10 @@
             //    // actually used.
             //    .lazy = false,
         },
+        .zigimg = .{
+            .url = "git+https://github.com/zigimg/zigimg#5b5d718159c6ec223a54c9bb960690576e5df9c2",
+            .hash = "122040d9cc905342547e1e9da227a7f16fae5e7ae23134cb62aaef64c5b2c4f58828",
+        },
     },
 
     // Specifies the set of files and directories that are included in this package.
