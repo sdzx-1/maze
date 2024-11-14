@@ -93,8 +93,8 @@ const Direction = struct {
 };
 
 // TotalXSize, TotalYSize 是奇数
-pub const TotalXSize = 1641;
-pub const TotalYSize = 1641;
+pub const TotalXSize = 2041;
+pub const TotalYSize = 2041;
 pub const Scale = 1;
 const RoomMaxSize = 7;
 
@@ -284,6 +284,32 @@ const Stage = enum {
     generateTree,
     removeSingle,
     totalTime,
+
+    const Self = @This();
+
+    pub fn to_usize(self: Self) usize {
+        return @intFromEnum(self);
+    }
+};
+
+const StageTimeMap = struct {
+    list: [@typeInfo(Stage).@"enum".fields.len]i64,
+
+    const Self = @This();
+
+    pub fn clean(self: *Self) void {
+        for (0..self.list.len) |i| {
+            self.list[i] = 0;
+        }
+    }
+
+    pub fn put(self: *Self, key: Stage, val: i64) void {
+        self.list[key.to_usize()] = val;
+    }
+
+    pub fn get(self: *const Self, key: Stage) i64 {
+        return self.list[key.to_usize()];
+    }
 };
 
 const TwoPartMap = std.AutoHashMap([2]usize, std.ArrayList(Index));
@@ -291,7 +317,6 @@ const IdPeers = std.AutoHashMap(usize, std.AutoHashMap(usize, void));
 const IdConnPoints = std.AutoHashMap(usize, std.ArrayList(Index));
 const SelectedIds = std.AutoHashMap(usize, void);
 const SelectedConnPoints = std.AutoHashMap(Index, void);
-const StageTimeMap = std.AutoArrayHashMap(Stage, i64);
 const RoomList = std.ArrayList(Room);
 const GenRoomMaxTestTimes = TotalXSize * TotalYSize / 2;
 
@@ -312,14 +337,13 @@ pub const Board = struct {
         const tpm = TwoPartMap.init(allocator);
         const idp = IdPeers.init(allocator);
         const idcp = IdConnPoints.init(allocator);
-        const stageTimeMap = StageTimeMap.init(allocator);
         return Board{
             .board = board,
             .roomList = roomList,
             .twoPartMap = tpm,
             .idPeers = idp,
             .idConnPoints = idcp,
-            .stageTimeMap = stageTimeMap,
+            .stageTimeMap = undefined,
             .globalCounter = 0,
         };
     }
@@ -362,7 +386,7 @@ pub const Board = struct {
         self.twoPartMap.clearAndFree();
         self.idPeers.deinit();
         self.idConnPoints.deinit();
-        self.stageTimeMap.deinit();
+        self.stageTimeMap.clean();
         self.roomList.deinit();
         allocator.destroy(self.board);
     }
@@ -388,14 +412,14 @@ pub const Board = struct {
             self.twoPartMap.clearAndFree();
             self.idPeers.clearAndFree();
             self.idConnPoints.clearAndFree();
-            self.stageTimeMap.clearAndFree();
+            self.stageTimeMap.clean();
             self.roomList.clearAndFree();
         }
 
         const t2 = std.time.milliTimestamp();
         try self.genRoomList();
         const t3 = std.time.milliTimestamp();
-        try self.stageTimeMap.put(.generateRoom, t3 - t2);
+        self.stageTimeMap.put(.generateRoom, t3 - t2);
 
         const t4 = std.time.milliTimestamp();
         var stack = Stack(IndexAndDirection).init(allocator);
@@ -415,12 +439,12 @@ pub const Board = struct {
             }
         }
         const t5 = std.time.milliTimestamp();
-        try self.stageTimeMap.put(.floodFill, t5 - t4);
+        self.stageTimeMap.put(.floodFill, t5 - t4);
 
         const t6 = std.time.milliTimestamp();
         try findConnPoint(self, allocator);
         const t7 = std.time.milliTimestamp();
-        try self.stageTimeMap.put(.findConnPoint, t7 - t6);
+        self.stageTimeMap.put(.findConnPoint, t7 - t6);
 
         const t8 = std.time.milliTimestamp();
         var selecIds = SelectedIds.init(allocator);
@@ -446,7 +470,7 @@ pub const Board = struct {
             allocator,
         );
         const t9 = std.time.milliTimestamp();
-        try self.stageTimeMap.put(.generateTree, t9 - t8);
+        self.stageTimeMap.put(.generateTree, t9 - t8);
 
         const t10 = std.time.milliTimestamp();
         for (1..TotalYSize) |y| {
@@ -458,26 +482,22 @@ pub const Board = struct {
             }
         }
         const t11 = std.time.milliTimestamp();
-        try self.stageTimeMap.put(.removeSingle, t11 - t10);
+        self.stageTimeMap.put(.removeSingle, t11 - t10);
 
-        try self.stageTimeMap.put(.totalTime, t11 - t2);
+        self.stageTimeMap.put(.totalTime, t11 - t2);
 
-        const totalTime: f32 = @floatFromInt(self.stageTimeMap.get(.totalTime).?);
+        const totalTime: f32 = @floatFromInt(self.stageTimeMap.get(.totalTime));
 
-        var iter = self.stageTimeMap.iterator();
         std.debug.print("=============\n", .{});
-        while (iter.next()) |ent| {
-            switch (ent.key_ptr.*) {
+        for (0..self.stageTimeMap.list.len) |i| {
+            const t: Stage = @enumFromInt(i);
+            switch (t) {
                 .totalTime => {},
                 else => {
-                    const vv: f64 = @floatFromInt(ent.value_ptr.*);
+                    const vv: f64 = @floatFromInt(self.stageTimeMap.list[i]);
                     std.debug.print(
                         "p: {d:.2}, key: {}, val: {d}ms\n",
-                        .{
-                            vv / totalTime,
-                            ent.key_ptr.*,
-                            ent.value_ptr.*,
-                        },
+                        .{ vv / totalTime, t, vv },
                     );
                 },
             }
