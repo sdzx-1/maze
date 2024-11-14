@@ -298,10 +298,11 @@ const GenRoomMaxTestTimes = TotalXSize * TotalYSize / 2;
 pub const Board = struct {
     board: *[TotalYSize][TotalXSize]Tag,
     roomList: RoomList,
-    twoPartMap: TwoPartMap = undefined,
-    idPeers: IdPeers = undefined,
-    idConnPoints: IdConnPoints = undefined,
+    twoPartMap: TwoPartMap,
+    idPeers: IdPeers,
+    idConnPoints: IdConnPoints,
     stageTimeMap: StageTimeMap,
+    globalCounter: usize,
 
     const Self = @This();
 
@@ -319,6 +320,7 @@ pub const Board = struct {
             .idPeers = idp,
             .idConnPoints = idcp,
             .stageTimeMap = stageTimeMap,
+            .globalCounter = 0,
         };
     }
 
@@ -369,6 +371,7 @@ pub const Board = struct {
         const t0 = std.time.milliTimestamp();
         {
             self.cleanBoard();
+            self.globalCounter = 0;
             var iter = self.twoPartMap.valueIterator();
             while (iter.next()) |v| {
                 v.clearAndFree();
@@ -393,8 +396,7 @@ pub const Board = struct {
         try self.stageTimeMap.put(.clean, t1 - t0);
 
         const t2 = std.time.milliTimestamp();
-        var globalVal: usize = 0;
-        try self.genRoomList(&globalVal);
+        try self.genRoomList();
         const t3 = std.time.milliTimestamp();
         try self.stageTimeMap.put(.generateRoom, t3 - t2);
 
@@ -410,8 +412,8 @@ pub const Board = struct {
                         .index = index,
                         .direction = .{ .dirX = 1, .dirY = 0 },
                     });
-                    globalVal += 1;
-                    try self.floodFilling(&stack, genRandomColor(), globalVal);
+                    self.globalCounter += 1;
+                    try self.floodFilling(&stack, genRandomColor());
                 }
             }
         }
@@ -443,7 +445,7 @@ pub const Board = struct {
         try self.genTree(
             &selecIds,
             &selecConnPoints,
-            globalVal,
+            self.globalCounter,
             allocator,
         );
         const t9 = std.time.milliTimestamp();
@@ -483,7 +485,7 @@ pub const Board = struct {
         }
     }
 
-    pub fn genRoomList(self: *Self, globalVal: *usize) !void {
+    pub fn genRoomList(self: *Self) !void {
         blk: for (0..GenRoomMaxTestTimes) |_| {
             if (Room.genRoom()) |room| {
                 const ty: usize = @intCast(room.pos.y);
@@ -494,13 +496,13 @@ pub const Board = struct {
                     }
                 }
                 try self.roomList.append(room);
-                globalVal.* += 1;
+                self.globalCounter += 1;
 
                 for (0..@intCast(room.size.ySize)) |dy| {
                     for (0..@intCast(room.size.xSize)) |dx| {
                         self.board[ty + dy][tx + dx] =
                             .{ .room = .{
-                            .id = globalVal.*,
+                            .id = self.globalCounter,
                             .color = room.color,
                         } };
                     }
@@ -661,7 +663,7 @@ pub const Board = struct {
         }
     }
 
-    pub fn floodFilling(self: *Self, stack: *Stack(IndexAndDirection), col: rl.Color, globalVal: usize) !void {
+    pub fn floodFilling(self: *Self, stack: *Stack(IndexAndDirection), col: rl.Color) !void {
         const K = Direction.Direction_of_widening_and_thickening;
         blk0: while (stack.pop()) |start| {
             if (self.board[start.index.y][start.index.x] != .blank) continue;
@@ -676,7 +678,7 @@ pub const Board = struct {
             }
 
             self.board[start.index.y][start.index.x] = .{ .path = .{
-                .id = globalVal,
+                .id = self.globalCounter,
                 .color = col,
             } };
 
