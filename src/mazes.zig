@@ -577,11 +577,14 @@ pub const Board = struct {
                             idIndex += 1;
                             result += 1;
                         },
+                        .connPoint => |_| {
+                            result += 3;
+                        },
                         else => result += 0,
                     }
                 }
 
-                if (result >= 101) {
+                if (result == 101 or result == 200) {
                     const v0 = idArr[0];
                     const v1 = idArr[1];
 
