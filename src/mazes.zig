@@ -8,8 +8,8 @@ const Xoroshiro = std.Random.Xoroshiro128;
 
 pub const IsTestPerformance = false;
 // TotalXSize, TotalYSize 是奇数
-pub const TotalXSize = if (IsTestPerformance) 2041 else 41;
-pub const TotalYSize = if (IsTestPerformance) 2041 else 41;
+pub const TotalXSize = if (IsTestPerformance) 2041 else 241;
+pub const TotalYSize = if (IsTestPerformance) 2041 else 241;
 pub const Scale = 1;
 const RoomMaxSize = 7;
 
@@ -290,7 +290,7 @@ pub const Board = struct {
         allocator.destroy(self.board);
     }
 
-    pub fn testFF(self: *Self, allocator: Allocator) !void {
+    pub fn genMazes(self: *Self, allocator: Allocator) !void {
         {
             self.cleanBoard();
             self.globalCounter = 0;
@@ -655,5 +655,5 @@ test "boadr" {
     const allocator = std.testing.allocator;
     var board = try Board.init(allocator);
     defer board.dinit(allocator);
-    try board.testFF(allocator);
+    try board.genMazes(allocator);
 }

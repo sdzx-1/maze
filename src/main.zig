@@ -3,29 +3,64 @@ const std = @import("std");
 const mazes = @import("mazes.zig");
 const Room = mazes.Room;
 
+const Color = rl.Color;
+
+const colorList = [_]rl.Color{
+    Color.black,
+    Color.gray,
+    Color.dark_gray,
+    Color.yellow,
+    Color.gold,
+    Color.orange,
+    Color.pink,
+    Color.red,
+    Color.maroon,
+    Color.green,
+    Color.lime,
+    Color.dark_green,
+    Color.sky_blue,
+    Color.blue,
+    Color.dark_blue,
+    Color.purple,
+    Color.violet,
+    Color.dark_purple,
+    Color.beige,
+    Color.brown,
+    Color.dark_brown,
+    Color.magenta,
+    Color.ray_white,
+};
+
+pub fn tagToColor(tag: mazes.Tag) Color {
+    return switch (tag) {
+        .room => |i| colorList[@mod(i, colorList.len)],
+        .blank => Color.white,
+        .path => |i| colorList[@mod(i, colorList.len)],
+        .connPoint => Color.black,
+    };
+}
+
 pub fn main() anyerror!void {
     // Initialization
     //--------------------------------------------------------------------------------------
     const screenWidth = 1000; // mazes.TotalXSize * mazes.Scale;
     const screenHeight = 1000; //mazes.TotalYSize * mazes.Scale;
 
-    rl.initWindow(screenWidth, screenHeight, "raylib-zig [core] example - basic window");
+    rl.initWindow(screenWidth, screenHeight, "mazes");
     defer rl.closeWindow(); // Close window and OpenGL context
 
     // init stat
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
 
-    var buf = try allocator.alloc(u8, 2000);
-    _ = &buf;
     var board = try mazes.Board.init(allocator, 1234);
     defer board.dinit(allocator);
 
-    try board.testFF(allocator);
+    try board.genMazes(allocator);
 
     var camera = rl.Camera3D{
-        .position = rl.Vector3.init(4, 12, 4),
-        .target = rl.Vector3.init(10, 1.8, 10),
+        .position = rl.Vector3.init(0, 10, 5),
+        .target = rl.Vector3.init(0, 0, 0),
         .up = rl.Vector3.init(0, 1, 0),
         .fovy = 60,
         .projection = rl.CameraProjection.camera_perspective,
@@ -48,15 +83,15 @@ pub fn main() anyerror!void {
         }
 
         if (rl.isKeyPressed(rl.KeyboardKey.key_space)) {
-            try board.testFF(allocator);
+            try board.genMazes(allocator);
         }
 
         if (rl.isKeyDown(rl.KeyboardKey.key_q)) {
-            camera.position.y -= 0.1;
+            camera.position.y -= 0.5;
         }
 
         if (rl.isKeyDown(rl.KeyboardKey.key_e)) {
-            camera.position.y += 0.1;
+            camera.position.y += 0.5;
         }
         // Draw
         //----------------------------------------------------------------------------------
@@ -70,17 +105,33 @@ pub fn main() anyerror!void {
             // Draw ground
             rl.drawPlane(rl.Vector3.init(0, 0, 0), rl.Vector2.init(6400, 6400), rl.Color.light_gray);
 
-            for (0..@min(mazes.TotalYSize, 100)) |y| {
-                for (0..@min(mazes.TotalXSize, 100)) |x| {
-                    const tag = board.board[y][x];
+            for (0..241) |dy| {
+                for (0..241) |dx| {
+                    const x = @as(i32, @intCast(dx));
+                    const y = @as(i32, @intCast(dy));
+                    const idx = mazes.Index{ .x = x, .y = y };
+                    if (!idx.inBoard()) continue;
+                    const tag = board.readBoard(idx);
                     switch (tag) {
                         .blank => {},
                         else => {
-                            const size: f32 = 1;
+                            const size: f32 = 0.3;
                             const nx: f32 = @as(f32, @floatFromInt(x)) * size;
                             const ny: f32 = @as(f32, @floatFromInt(y)) * size;
-                            rl.drawCube(rl.Vector3.init(nx, 1, ny), size, size, size, rl.Color.black);
-                            rl.drawCubeWires(rl.Vector3.init(nx, 1, ny), size, size, size, rl.Color.green);
+                            rl.drawCube(
+                                rl.Vector3.init(nx, 1, ny),
+                                size,
+                                size,
+                                size,
+                                tagToColor(tag),
+                            );
+                            rl.drawCubeWires(
+                                rl.Vector3.init(nx, 1, ny),
+                                size,
+                                size,
+                                size,
+                                rl.Color.black,
+                            );
                         },
                     }
                 }
