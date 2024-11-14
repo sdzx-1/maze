@@ -12,13 +12,13 @@ pub fn main() anyerror!void {
     rl.initWindow(screenWidth, screenHeight, "raylib-zig [core] example - basic window");
     defer rl.closeWindow(); // Close window and OpenGL context
 
-    // init state
+    // init stat
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
 
     var buf = try allocator.alloc(u8, 2000);
     _ = &buf;
-    var board = try mazes.Board.init(allocator);
+    var board = try mazes.Board.init(allocator, 1234);
     defer board.dinit(allocator);
 
     try board.testFF(allocator);
@@ -79,7 +79,7 @@ pub fn main() anyerror!void {
                             const size: f32 = 1;
                             const nx: f32 = @as(f32, @floatFromInt(x)) * size;
                             const ny: f32 = @as(f32, @floatFromInt(y)) * size;
-                            rl.drawCube(rl.Vector3.init(nx, 1, ny), size, size, size, tag.toColor());
+                            rl.drawCube(rl.Vector3.init(nx, 1, ny), size, size, size, rl.Color.black);
                             rl.drawCubeWires(rl.Vector3.init(nx, 1, ny), size, size, size, rl.Color.green);
                         },
                     }

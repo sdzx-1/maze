@@ -1,10 +1,17 @@
-const rl = @import("raylib");
 const std = @import("std");
 const data = @import("data.zig");
 const Stack = data.Stack;
 const Queue = data.Queue;
 const Allocator = std.mem.Allocator;
 const Value = std.json.Value;
+const Xoroshiro = std.Random.Xoroshiro128;
+
+pub const IsTestPerformance = false;
+// TotalXSize, TotalYSize 是奇数
+pub const TotalXSize = if (IsTestPerformance) 2041 else 41;
+pub const TotalYSize = if (IsTestPerformance) 2041 else 41;
+pub const Scale = 1;
+const RoomMaxSize = 7;
 
 const Size = struct {
     xSize: i32,
@@ -93,42 +100,10 @@ const Direction = struct {
     };
 };
 
-// TotalXSize, TotalYSize 是奇数
-pub const TotalXSize = 41;
-pub const TotalYSize = 41;
-pub const Scale = 1;
-const RoomMaxSize = 7;
-
-const C = rl.Color;
-const allColor = [_]rl.Color{
-    C.dark_gray,
-    C.yellow,
-    C.gold,
-    C.orange,
-    C.pink,
-    C.red,
-    C.maroon,
-    C.lime,
-    C.sky_blue,
-    C.dark_blue,
-    C.purple,
-    C.violet,
-    C.dark_purple,
-    C.beige,
-    C.brown,
-    C.dark_brown,
-    C.magenta,
-};
-
-pub fn genRandomColor() C {
-    const ci: usize = @intCast(rl.getRandomValue(0, allColor.len - 1));
-    return allColor[ci];
-}
-
-pub fn genRandomOdd(min: i32, max: i32) i32 {
-    var v = rl.getRandomValue(min, max);
+pub fn genRandomOdd(min: i32, max: i32, random: std.Random) i32 {
+    var v = random.intRangeAtMost(i32, min, max);
     while (@mod(v, 2) == 0) {
-        v = rl.getRandomValue(min, max);
+        v = random.intRangeAtMost(i32, min, max);
     }
     return v;
 }
@@ -138,7 +113,6 @@ pub fn genRandomOdd(min: i32, max: i32) i32 {
 pub const Room = struct {
     pos: Pos,
     size: Size,
-    color: rl.Color,
 
     const Self = @This();
 
@@ -147,35 +121,12 @@ pub const Room = struct {
         self.size = size;
     }
 
-    pub fn draw(self: Self, buf: []u8) !void {
-        rl.drawRectangle(
-            self.pos.x * Scale,
-            self.pos.y * Scale,
-            self.size.xSize * Scale,
-            self.size.ySize * Scale,
-            rl.Color.gray,
-        );
-        const st = try std.fmt.bufPrintZ(
-            buf,
-            "{d} {d}",
-            .{ self.size.xSize, self.size.ySize },
-        );
+    pub fn genRoom(random: std.Random) ?Self {
+        const x = genRandomOdd(1, TotalXSize, random);
+        const y = genRandomOdd(1, TotalYSize, random);
 
-        rl.drawText(
-            st,
-            self.pos.x * Scale,
-            self.pos.y * Scale,
-            20,
-            rl.Color.black,
-        );
-    }
-
-    pub fn genRoom() ?Self {
-        const x = genRandomOdd(1, TotalXSize);
-        const y = genRandomOdd(1, TotalYSize);
-
-        const xsize = genRandomOdd(3, RoomMaxSize);
-        const ysize = genRandomOdd(3, RoomMaxSize);
+        const xsize = genRandomOdd(3, RoomMaxSize, random);
+        const ysize = genRandomOdd(3, RoomMaxSize, random);
 
         if (x + xsize > TotalXSize or y + ysize > TotalYSize or
             xsize > 2 * ysize or ysize > 2 * xsize or
@@ -184,81 +135,15 @@ pub const Room = struct {
         return .{
             .pos = .{ .x = x, .y = y },
             .size = .{ .xSize = xsize, .ySize = ysize },
-            .color = genRandomColor(),
         };
-    }
-
-    pub fn room_intersection_test(self: Self, other: Room) bool {
-        const vx = line_intersection_test(self.pos.x, self.size.xSize, other.pos.x, other.size.xSize);
-        const vy = line_intersection_test(self.pos.y, self.size.ySize, other.pos.y, other.size.ySize);
-
-        if (vx and vy) {
-            return true;
-        } else {
-            return false;
-        }
     }
 };
 
-fn line_intersection_test(x0: i32, x0size: i32, x1: i32, x1size: i32) bool {
-    if (x0 + x0size < x1) {
-        return false;
-    } else if (x0 > x1 + x1size) {
-        return false;
-    } else {
-        return true;
-    }
-}
-
 pub const Tag = union(enum) {
-    room: struct {
-        id: usize,
-        color: rl.Color,
-    },
+    room: struct { id: usize },
     blank,
-    path: struct {
-        id: usize,
-        color: rl.Color,
-    },
+    path: struct { id: usize },
     connPoint: [2]usize,
-
-    const DV = Scale / 2;
-
-    pub fn getId(tag: Tag) ?usize {
-        return switch (tag) {
-            .room => |r| r.id,
-            .blank => null,
-            .path => |r| r.id,
-            .connPoint => null,
-        };
-    }
-
-    pub fn toDpos(tag: Tag) i32 {
-        return switch (tag) {
-            .room => 0,
-            .blank => 0,
-            .path => DV / 2,
-            .connPoint => DV / 2,
-        };
-    }
-
-    pub fn toDw(tag: Tag) i32 {
-        return switch (tag) {
-            .room => Scale,
-            .blank => Scale,
-            .path => Scale - DV,
-            .connPoint => Scale - DV,
-        };
-    }
-
-    pub fn toColor(tag: Tag) rl.Color {
-        switch (tag) {
-            .room => |c| return c.color,
-            .blank => return rl.Color.gray,
-            .path => |c| return c.color,
-            .connPoint => return C.black,
-        }
-    }
 };
 
 pub const Index = struct {
@@ -287,6 +172,17 @@ const Stage = enum {
     totalTime,
 
     const Self = @This();
+
+    pub fn show(self: Self) [:0]const u8 {
+        switch (self) {
+            .generateRoom => return "generateRoom",
+            .floodFill => return "floodFill",
+            .findConnPoint => return "findConnPoint",
+            .generateTree => return "generateTree",
+            .removeSingle => return "removeSing",
+            .totalTime => return "totalTime",
+        }
+    }
 
     pub inline fn to_usize(self: Self) usize {
         return @intFromEnum(self);
@@ -331,15 +227,17 @@ pub const Board = struct {
     idConnPoints: IdConnPoints,
     stageTimeMap: StageTimeMap,
     globalCounter: usize,
+    xoroshiro: Xoroshiro,
 
     const Self = @This();
 
-    pub fn init(allocator: Allocator) !Board {
+    pub fn init(allocator: Allocator, seed: u64) !Board {
         const board = try allocator.create([TotalYSize][TotalXSize]Tag);
         const roomList = RoomList.init(allocator);
         const tpm = TwoPartMap.init(allocator);
         const idp = IdPeers.init(allocator);
         const idcp = IdConnPoints.init(allocator);
+        const xx = Xoroshiro.init(seed);
         return Board{
             .board = board,
             .roomList = roomList,
@@ -348,6 +246,7 @@ pub const Board = struct {
             .idConnPoints = idcp,
             .stageTimeMap = undefined,
             .globalCounter = 0,
+            .xoroshiro = xx,
         };
     }
 
@@ -419,8 +318,11 @@ pub const Board = struct {
             self.roomList.clearAndFree();
         }
 
+        if (IsTestPerformance) self.xoroshiro.seed(1234);
+        const random = self.xoroshiro.random();
+
         const t2 = std.time.milliTimestamp();
-        try self.genRoomList();
+        try self.genRoomList(random);
         const t3 = std.time.milliTimestamp();
         self.stageTimeMap.put(.generateRoom, t3 - t2);
 
@@ -437,7 +339,7 @@ pub const Board = struct {
                         .direction = .{ .dirX = 1, .dirY = 0 },
                     });
                     self.globalCounter += 1;
-                    try self.floodFilling(&stack, genRandomColor());
+                    try self.floodFilling(&stack);
                 }
             }
         }
@@ -456,7 +358,7 @@ pub const Board = struct {
         defer selecConnPoints.deinit();
 
         const rsize: i32 = @intCast(self.roomList.items.len);
-        const v: usize = @intCast(rl.getRandomValue(0, rsize - 1));
+        const v: usize = @intCast(random.intRangeAtMost(i32, 0, rsize - 1));
         const troom = self.roomList.items[v];
         const kx: usize = @intCast(troom.pos.x);
         const ky: usize = @intCast(troom.pos.y);
@@ -471,6 +373,7 @@ pub const Board = struct {
             &selecConnPoints,
             self.globalCounter,
             allocator,
+            random,
         );
         const t9 = std.time.milliTimestamp();
         self.stageTimeMap.put(.generateTree, t9 - t8);
@@ -499,27 +402,27 @@ pub const Board = struct {
                 else => {
                     const vv: f64 = @floatFromInt(self.stageTimeMap.list[i]);
                     std.debug.print(
-                        "p: {d:.2}, key: {}, val: {d}ms\n",
-                        .{ vv / totalTime, t, vv },
+                        "p: {d:.2}, val: {d}ms, key: {s}\n",
+                        .{ vv / totalTime, vv, t.show() },
                     );
                 },
             }
         }
         std.debug.print("total time: {d}ms\n", .{totalTime});
+
+        if (IsTestPerformance) {
+            try recordPerformance(self, allocator);
+        }
     }
 
     const Record = struct {
         time: i64,
-        xsize: u64,
-        ysize: u64,
         stageTimeList: StageTimeList,
     };
 
     pub fn recordPerformance(self: *const Self, allocator: Allocator) !void {
         const newRecord: Record = .{
             .time = std.time.timestamp(),
-            .xsize = TotalXSize,
-            .ysize = TotalYSize,
             .stageTimeList = self.stageTimeMap.list,
         };
 
@@ -540,13 +443,15 @@ pub const Board = struct {
             allocator,
             &jReader,
             .{},
-        ) catch blk: {
+        ) catch |err| blk: {
+            std.debug.print("err: {any}\n", .{err});
             break :blk null;
         };
 
         if (pResult) |res| {
             defer res.deinit();
             const v0 = res.value;
+            // defer allocator.free(v0);
             var arr1 = try allocator.alloc(Record, v0.len + 1);
             defer allocator.free(arr1);
             arr1[v0.len] = newRecord;
@@ -554,12 +459,24 @@ pub const Board = struct {
                 arr1[i] = v0[i];
             }
 
+            try file.seekTo(0);
             try std.json.stringify(
                 arr1,
                 .{},
                 file.writer(),
             );
+
+            const lastSL = v0[v0.len - 1].stageTimeList;
+            const currSL = self.stageTimeMap.list;
+
+            for (0..currSL.len) |i| {
+                const tag: Stage = @enumFromInt(i);
+                const diff: i64 = currSL[i] - lastSL[i];
+                const p: f64 = @as(f64, @floatFromInt(diff)) / @as(f64, @floatFromInt(lastSL[i]));
+                std.debug.print("p: {d:.0}%, diff: {d}ms, {s}\n", .{ p * 100, diff, tag.show() });
+            }
         } else {
+            try file.seekTo(0);
             try std.json.stringify(
                 [1]Record{newRecord},
                 .{},
@@ -568,9 +485,9 @@ pub const Board = struct {
         }
     }
 
-    pub fn genRoomList(self: *Self) !void {
+    pub fn genRoomList(self: *Self, random: std.Random) !void {
         blk: for (0..GenRoomMaxTestTimes) |_| {
-            if (Room.genRoom()) |room| {
+            if (Room.genRoom(random)) |room| {
                 const ty: usize = @intCast(room.pos.y);
                 const tx: usize = @intCast(room.pos.x);
                 for (0..@intCast(room.size.ySize)) |dy| {
@@ -586,7 +503,6 @@ pub const Board = struct {
                         self.board[ty + dy][tx + dx] =
                             .{ .room = .{
                             .id = self.globalCounter,
-                            .color = room.color,
                         } };
                     }
                 }
@@ -631,6 +547,7 @@ pub const Board = struct {
         sConnPointSet: *SelectedConnPoints,
         globalVal: usize,
         allocator: Allocator,
+        random: std.Random,
     ) !void {
         while (sIdSet.count() < globalVal) {
             var iter = sConnPointSet.keyIterator();
@@ -667,7 +584,7 @@ pub const Board = struct {
                     _ = sConnPointSet.remove(idx);
 
                     if (sedConnIndex.y == idx.y and sedConnIndex.x == idx.x) {} else {
-                        const tmpk = rl.getRandomValue(1, 100);
+                        const tmpk = random.intRangeAtMost(i32, 1, 100);
                         if (tmpk > 97) {} else {
                             self.board[idx.y][idx.x] = .blank;
                         }
@@ -746,7 +663,7 @@ pub const Board = struct {
         }
     }
 
-    pub fn floodFilling(self: *Self, stack: *Stack(IndexAndDirection), col: rl.Color) !void {
+    pub fn floodFilling(self: *Self, stack: *Stack(IndexAndDirection)) !void {
         const K = Direction.Direction_of_widening_and_thickening;
         blk0: while (stack.pop()) |start| {
             if (self.board[start.index.y][start.index.x] != .blank) continue;
@@ -760,10 +677,7 @@ pub const Board = struct {
                 if (self.board[@as(usize, @intCast(ny))][@as(usize, @intCast(nx))] != .blank) continue :blk0;
             }
 
-            self.board[start.index.y][start.index.x] = .{ .path = .{
-                .id = self.globalCounter,
-                .color = col,
-            } };
+            self.board[start.index.y][start.index.x] = .{ .path = .{ .id = self.globalCounter } };
 
             for (0..4) |i| {
                 const dirs = K[@mod(ti + i + 1, 4)];
@@ -799,42 +713,17 @@ pub const Board = struct {
             }
         }
     }
-
-    pub fn draw(self: Self, buf: []u8) !void {
-        for (0..TotalYSize) |y| {
-            for (0..TotalXSize) |x| {
-                const tag = self.board[y][x];
-                rl.drawRectangle(
-                    @as(i32, @intCast(x)) * Scale + tag.toDpos(),
-                    @as(i32, @intCast(y)) * Scale + tag.toDpos(),
-                    tag.toDw(), //- 3,
-                    tag.toDw(), // - 3,
-                    tag.toColor(),
-                );
-                _ = buf;
-
-                // if (tag.getId()) |id| {
-                //     const v = try std.fmt.bufPrintZ(
-                //         buf,
-                //         "{d}",
-                //         .{id},
-                //     );
-
-                //     rl.drawText(
-                //         v,
-                //         @as(i32, @intCast(x)) * Scale + tag.toDpos(),
-                //         @as(i32, @intCast(y)) * Scale + tag.toDpos(),
-                //         13,
-                //         C.black,
-                //     );
-                // }
-            }
-        }
-    }
 };
 
 pub fn mosPosToIndex(x: i32, y: i32) Index {
     const vx: usize = @intCast(@divTrunc(x, Scale));
     const vy: usize = @intCast(@divTrunc(y, Scale));
     return .{ .x = vx, .y = vy };
+}
+
+test "boadr" {
+    const allocator = std.testing.allocator;
+    var board = try Board.init(allocator);
+    defer board.dinit(allocator);
+    try board.testFF(allocator);
 }
