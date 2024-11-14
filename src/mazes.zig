@@ -4,6 +4,7 @@ const data = @import("data.zig");
 const Stack = data.Stack;
 const Queue = data.Queue;
 const Allocator = std.mem.Allocator;
+const Value = std.json.Value;
 
 const Size = struct {
     xSize: i32,
@@ -93,8 +94,8 @@ const Direction = struct {
 };
 
 // TotalXSize, TotalYSize 是奇数
-pub const TotalXSize = 2041;
-pub const TotalYSize = 2041;
+pub const TotalXSize = 41;
+pub const TotalYSize = 41;
 pub const Scale = 1;
 const RoomMaxSize = 7;
 
@@ -292,8 +293,10 @@ const Stage = enum {
     }
 };
 
+const StageTimeList = [@typeInfo(Stage).@"enum".fields.len]i64;
+
 const StageTimeMap = struct {
-    list: [@typeInfo(Stage).@"enum".fields.len]i64,
+    list: StageTimeList,
 
     const Self = @This();
 
@@ -503,6 +506,66 @@ pub const Board = struct {
             }
         }
         std.debug.print("total time: {d}ms\n", .{totalTime});
+    }
+
+    const Record = struct {
+        time: i64,
+        xsize: u64,
+        ysize: u64,
+        stageTimeList: StageTimeList,
+    };
+
+    pub fn recordPerformance(self: *const Self, allocator: Allocator) !void {
+        const newRecord: Record = .{
+            .time = std.time.timestamp(),
+            .xsize = TotalXSize,
+            .ysize = TotalYSize,
+            .stageTimeList = self.stageTimeMap.list,
+        };
+
+        const path = "performance";
+        const currDir = std.fs.cwd();
+        var file: std.fs.File = undefined;
+        defer file.close();
+        currDir.access(path, .{}) catch {
+            file = try currDir.createFile(
+                path,
+                .{},
+            );
+        };
+        file = try currDir.openFile(path, .{ .mode = .read_write });
+        var jReader = std.json.reader(allocator, file.reader());
+        const pResult: ?std.json.Parsed([]Record) = std.json.parseFromTokenSource(
+            []Record,
+            allocator,
+            &jReader,
+            .{},
+        ) catch blk: {
+            break :blk null;
+        };
+
+        if (pResult) |res| {
+            defer res.deinit();
+            const v0 = res.value;
+            var arr1 = try allocator.alloc(Record, v0.len + 1);
+            defer allocator.free(arr1);
+            arr1[v0.len] = newRecord;
+            for (0..v0.len) |i| {
+                arr1[i] = v0[i];
+            }
+
+            try std.json.stringify(
+                arr1,
+                .{},
+                file.writer(),
+            );
+        } else {
+            try std.json.stringify(
+                [1]Record{newRecord},
+                .{},
+                file.writer(),
+            );
+        }
     }
 
     pub fn genRoomList(self: *Self) !void {
