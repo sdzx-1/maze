@@ -55,7 +55,7 @@ const SelectedConnPoints = std.AutoArrayHashMap(Index, void);
 const RoomList = std.ArrayList(Room);
 const GenRoomMaxTestTimes = TotalXSize * TotalYSize / 2;
 
-board: *[TotalYSize][TotalXSize]Tag,
+board: []Tag,
 roomList: RoomList,
 idConnPoints: IdConnPoints,
 stageTimeMap: StageTimeMap,
@@ -65,7 +65,7 @@ xoroshiro: Xoroshiro,
 const Self = @This();
 
 pub fn init(allocator: Allocator, seed: u64) !Maze {
-    const board = try allocator.create([TotalYSize][TotalXSize]Tag);
+    const board = try allocator.alloc(Tag, TotalYSize * TotalXSize);
     const roomList = RoomList.init(allocator);
     const idcp = IdConnPoints.init(allocator);
     const xx = Xoroshiro.init(seed);
@@ -80,11 +80,11 @@ pub fn init(allocator: Allocator, seed: u64) !Maze {
 }
 
 pub inline fn writeBoard(self: *Self, idx: Index, tag: Tag) void {
-    self.board[@as(usize, @intCast(idx.y))][@as(usize, @intCast(idx.x))] = tag;
+    self.board[idx.toPoint()] = tag;
 }
 
 pub inline fn readBoard(self: *const Self, idx: Index) Tag {
-    return self.board[@as(usize, @intCast(idx.y))][@as(usize, @intCast(idx.x))];
+    return self.board[idx.toPoint()];
 }
 pub fn idConnPointsInsert(self: *Self, a: u32, b: Index, allocator: Allocator) !void {
     if (self.idConnPoints.getPtr(a)) |hmp| {
@@ -104,7 +104,7 @@ pub fn dinit(self: *Self, allocator: Allocator) void {
     self.idConnPoints.deinit();
     self.stageTimeMap.clean();
     self.roomList.deinit();
-    allocator.destroy(self.board);
+    allocator.free(self.board);
 }
 
 pub fn genMazes(self: *Self, allocator: Allocator) !void {
@@ -168,7 +168,7 @@ pub fn genMazes(self: *Self, allocator: Allocator) !void {
     const troom = self.roomList.items[v];
     const kx: usize = @intCast(troom.pos.x);
     const ky: usize = @intCast(troom.pos.y);
-    const rid = self.board[ky][kx].room;
+    const rid = self.readBoard(Index.from_uszie_xy(kx, ky)).room;
 
     try selecIds.put(rid, {});
     for (self.idConnPoints.get(rid).?.items) |value| {
@@ -296,7 +296,8 @@ pub fn genRoomList(self: *Self, random: std.Random) !void {
             const tx: usize = @intCast(room.pos.x);
             for (0..@intCast(room.size.ySize)) |dy| {
                 for (0..@intCast(room.size.xSize)) |dx| {
-                    if (self.board[ty + dy][tx + dx] != .blank) continue :blk;
+                    const idx = Index.from_uszie_xy(tx + dx, ty + dy);
+                    if (self.readBoard(idx) != .blank) continue :blk;
                 }
             }
             try self.roomList.append(room);
@@ -304,8 +305,8 @@ pub fn genRoomList(self: *Self, random: std.Random) !void {
 
             for (0..@intCast(room.size.ySize)) |dy| {
                 for (0..@intCast(room.size.xSize)) |dx| {
-                    self.board[ty + dy][tx + dx] =
-                        .{ .room = self.globalCounter };
+                    const idx = Index.from_uszie_xy(tx + dx, ty + dy);
+                    self.writeBoard(idx, .{ .room = self.globalCounter });
                 }
             }
         }
@@ -416,7 +417,7 @@ pub fn findConnPoint(self: *Self, allocator: Allocator) !void {
                 try self.idConnPointsInsert(v0, idx, allocator);
                 try self.idConnPointsInsert(v1, idx, allocator);
 
-                self.board[y][x] = .{ .connPoint = tArr };
+                self.writeBoard(Index.from_uszie_xy(x, y), .{ .connPoint = tArr });
             }
         }
     }
@@ -465,7 +466,8 @@ pub fn checkSurrEight(self: *const Self, index: Index) bool {
 fn cleanBoard(self: *Self) void {
     for (0..TotalYSize) |y| {
         for (0..TotalXSize) |x| {
-            self.board[y][x] = .blank;
+            const idx = Index.from_uszie_xy(x, y);
+            self.writeBoard(idx, .blank);
         }
     }
 }
@@ -473,6 +475,14 @@ fn cleanBoard(self: *Self) void {
 pub const Index = struct {
     x: i32,
     y: i32,
+
+    pub inline fn init(x: i32, y: i32) Index {
+        return .{ .x = x, .y = y };
+    }
+
+    pub inline fn toPoint(self: Index) usize {
+        return @intCast(self.x + self.y * TotalXSize);
+    }
 
     pub inline fn eq(self: Index, other: Index) bool {
         if (self.x == other.x and self.y == other.y) {
