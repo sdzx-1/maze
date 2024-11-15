@@ -538,7 +538,25 @@ pub const IndexAndDirection = struct {
 
 test "boadr" {
     const allocator = std.testing.allocator;
-    var board = try Maze.init(allocator, 1234);
-    defer board.dinit(allocator);
-    try board.genMazes(allocator);
+    var b1 = try Maze.init(allocator, 51, 41, 3, 8, 12345);
+    defer b1.dinit(allocator);
+    try b1.genMazes(allocator);
+    printMaze(&b1);
+}
+
+fn printMaze(self: *const Maze) void {
+    for (0..self.totalYSize) |y| {
+        for (0..self.totalXSize) |x| {
+            const idx = Index.from_uszie_xy(x, y);
+            const val = self.readBoard(idx);
+            const st = switch (val) {
+                .room => "x",
+                .path => "+",
+                .connPoint => "?",
+                else => " ",
+            };
+            std.debug.print("{s} ", .{st});
+        }
+        std.debug.print("\n", .{});
+    }
 }
