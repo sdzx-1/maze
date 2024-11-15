@@ -60,6 +60,7 @@ pub fn main() anyerror!void {
         141,
         3,
         14,
+        0.03,
         1234,
     );
     defer board.dinit(allocator);

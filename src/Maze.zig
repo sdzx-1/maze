@@ -53,6 +53,8 @@ totalYSize: u32,
 roomMaxSize: i32,
 roomMinSize: i32,
 genRoomMaxTestTimes: u32, // TotalXSize * TotalYSize / 2,
+// The probability of redundant connection points being retained
+probability: f32,
 isTestPerformance: bool = false,
 board: []Tag,
 roomList: RoomList,
@@ -70,6 +72,7 @@ pub fn init(
     totalYSize: u32,
     roomMinSize: i32,
     roomMaxSize: i32,
+    probability: f32,
     seed: u64,
 ) !Maze {
     if (isEven(totalXSize)) return error.TotalXSize_Need_Odd;
@@ -85,6 +88,7 @@ pub fn init(
         .totalYSize = totalYSize,
         .roomMinSize = roomMinSize,
         .roomMaxSize = roomMaxSize,
+        .probability = probability,
         .genRoomMaxTestTimes = totalXSize * totalYSize / 2,
         .board = board,
         .roomList = roomList,
@@ -379,8 +383,8 @@ pub fn genTree(
             if (sConnPointSet.get(cp)) |_| {
                 _ = sConnPointSet.swapRemove(cp);
                 if (cp.eq(sedConnIndex)) {} else {
-                    const tmpk = self.random.intRangeAtMost(i32, 1, 100);
-                    if (tmpk > 95) {} else {
+                    const t1 = self.random.float(f32);
+                    if (t1 < self.probability) {} else {
                         self.writeBoard(cp, .blank);
                     }
                 }
@@ -538,7 +542,7 @@ pub const IndexAndDirection = struct {
 
 test "boadr" {
     const allocator = std.testing.allocator;
-    var b1 = try Maze.init(allocator, 51, 41, 3, 8, 12345);
+    var b1 = try Maze.init(allocator, 51, 41, 3, 8, 0.31, 12345);
     defer b1.dinit(allocator);
     try b1.genMazes(allocator);
     printMaze(&b1);
