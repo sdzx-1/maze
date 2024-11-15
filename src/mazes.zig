@@ -6,10 +6,10 @@ const Allocator = std.mem.Allocator;
 const Value = std.json.Value;
 const Xoroshiro = std.Random.Xoroshiro128;
 
-pub const IsTestPerformance = true;
+pub const IsTestPerformance = false;
 // TotalXSize, TotalYSize 是奇数
-pub const TotalXSize = if (IsTestPerformance) 2041 else 241;
-pub const TotalYSize = if (IsTestPerformance) 2041 else 241;
+pub const TotalXSize = if (IsTestPerformance) 2041 else 141;
+pub const TotalYSize = if (IsTestPerformance) 2041 else 141;
 pub const Scale = 1;
 const RoomMaxSize = 7;
 
@@ -233,7 +233,7 @@ const StageTimeMap = struct {
 
 const IdConnPoints = std.AutoHashMap(usize, std.ArrayList(Index));
 const SelectedIds = std.AutoHashMap(usize, void);
-const SelectedConnPoints = std.AutoHashMap(Index, void);
+const SelectedConnPoints = std.AutoArrayHashMap(Index, void);
 const RoomList = std.ArrayList(Room);
 const GenRoomMaxTestTimes = TotalXSize * TotalYSize / 2;
 
@@ -525,8 +525,9 @@ pub const Board = struct {
         random: std.Random,
     ) !void {
         while (sConnPointSet.count() != 0) {
-            var iter = sConnPointSet.keyIterator();
-            const sedConnIndex = iter.next().?.*;
+            const keys = sConnPointSet.keys();
+            const ti = random.intRangeAtMost(usize, 0, keys.len - 1);
+            const sedConnIndex = keys[ti];
             const tmpv = self.readBoard(sedConnIndex).connPoint;
             var newId: usize = undefined;
             if (sIdSet.get(tmpv[0])) |_| {
@@ -540,7 +541,7 @@ pub const Board = struct {
             const connPs = self.idConnPoints.get(newId).?;
             for (connPs.items) |cp| {
                 if (sConnPointSet.get(cp)) |_| {
-                    _ = sConnPointSet.remove(cp);
+                    _ = sConnPointSet.swapRemove(cp);
                     if (cp.eq(sedConnIndex)) {} else {
                         const tmpk = random.intRangeAtMost(i32, 1, 100);
                         if (tmpk > 97) {} else {
