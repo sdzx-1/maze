@@ -20,27 +20,7 @@ const Size = struct {
 const Pos = struct {
     x: i32,
     y: i32,
-
-    pub fn addDirection(self: Pos, dir: Direction) Pos {
-        return Pos{
-            .x = self.x + dir.dirX,
-            .y = self.y + dir.dirY,
-        };
-    }
 };
-
-pub fn dirToI(dir: Direction) usize {
-    if (dir.dirX == 1 and dir.dirY == 0) {
-        return 0;
-    } else if (dir.dirX == 0 and dir.dirY == -1) {
-        return 1;
-    } else if (dir.dirX == -1 and dir.dirY == 0) {
-        return 2;
-    } else if (dir.dirX == 0 and dir.dirY == 1) {
-        return 3;
-    }
-    unreachable;
-}
 
 const Direction = struct {
     dirX: i32,
@@ -48,13 +28,18 @@ const Direction = struct {
 
     const Self = @This();
 
-    pub fn init(dx: i32, dy: i32) Direction {
-        return .{ .dirX = dx, .dirY = dy };
+    pub fn toIndex(dir: Direction) usize {
+        if (dir.dirX == 1 and dir.dirY == 0) {
+            return 0;
+        } else if (dir.dirX == 0 and dir.dirY == -1) {
+            return 1;
+        } else if (dir.dirX == -1 and dir.dirY == 0) {
+            return 2;
+        } else if (dir.dirX == 0 and dir.dirY == 1) {
+            return 3;
+        }
+        unreachable;
     }
-    pub fn multiply_by_a_scalar(self: Self, s: i32) Direction {
-        return Direction.init(self.dirX * s, self.dirY.s);
-    }
-
     pub const Direction_of_widening_and_thickening = [4][3]Direction{
         [_]Direction{
             Direction{ .dirX = 1, .dirY = 0 },
@@ -113,14 +98,7 @@ pub const Room = struct {
     pos: Pos,
     size: Size,
 
-    const Self = @This();
-
-    pub fn init(self: Self, pos: Pos, size: Size) void {
-        self.pos = pos;
-        self.size = size;
-    }
-
-    pub fn genRoom(random: std.Random) ?Self {
+    pub fn genRoom(random: std.Random) ?Room {
         const x = genRandomOdd(1, TotalXSize, random);
         const y = genRandomOdd(1, TotalYSize, random);
 
@@ -606,7 +584,7 @@ pub const Board = struct {
 
     pub fn floodFilling(self: *Self, stack: *Stack(IndexAndDirection)) !void {
         blk0: while (stack.pop()) |start| {
-            const ti = dirToI(start.direction);
+            const ti = start.direction.toIndex();
             const tdirs = Direction.Direction_of_widening_and_thickening[ti];
 
             for (tdirs) |dir| {
@@ -655,7 +633,7 @@ pub const Board = struct {
 
 test "boadr" {
     const allocator = std.testing.allocator;
-    var board = try Board.init(allocator);
+    var board = try Board.init(allocator, 1234);
     defer board.dinit(allocator);
     try board.genMazes(allocator);
 }
