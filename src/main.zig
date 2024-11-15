@@ -54,7 +54,14 @@ pub fn main() anyerror!void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
 
-    var board = try Maze.init(allocator, 1234);
+    var board = try Maze.init(
+        allocator,
+        141,
+        141,
+        3,
+        14,
+        1234,
+    );
     defer board.dinit(allocator);
 
     try board.genMazes(allocator);
@@ -111,7 +118,7 @@ pub fn main() anyerror!void {
                     const x = @as(i32, @intCast(dx));
                     const y = @as(i32, @intCast(dy));
                     const idx = Maze.Index{ .x = x, .y = y };
-                    if (!idx.inBoard()) continue;
+                    if (!idx.inBoard(&board)) continue;
                     const tag = board.readBoard(idx);
                     switch (tag) {
                         .blank => {},

@@ -13,28 +13,21 @@ const StageTimeList = data.StageTimeList;
 const Stage = data.Stage;
 pub const Maze = @This();
 
-pub const IsTestPerformance = false;
-// TotalXSize, TotalYSize 是奇数
-pub const TotalXSize: u32 = if (IsTestPerformance) 2041 else 141;
-pub const TotalYSize: u32 = if (IsTestPerformance) 2041 else 141;
-const RoomMaxSize = 7;
-
-// x,      y     是奇数至少从1开始
-// xSize , ySize 是奇数至少从3开始
 pub const Room = struct {
+    // x,      y     是奇数至少从1开始
     pos: Pos,
+    // xSize , ySize 是奇数至少从3开始
     size: Size,
 
-    pub fn genRoom(random: std.Random) ?Room {
-        const x = data.genRandomOdd(1, TotalXSize, random);
-        const y = data.genRandomOdd(1, TotalYSize, random);
+    pub fn genRoom(maze: *const Maze) ?Room {
+        const x = data.genRandomOdd(1, @as(i32, @intCast(maze.totalXSize)), maze.random);
+        const y = data.genRandomOdd(1, @as(i32, @intCast(maze.totalYSize)), maze.random);
 
-        const xsize = data.genRandomOdd(3, RoomMaxSize, random);
-        const ysize = data.genRandomOdd(3, RoomMaxSize, random);
+        const xsize = data.genRandomOdd(maze.roomMinSize, maze.roomMaxSize, maze.random);
+        const ysize = data.genRandomOdd(maze.roomMinSize, maze.roomMaxSize, maze.random);
 
-        if (x + xsize > TotalXSize or y + ysize > TotalYSize or
-            xsize > 2 * ysize or ysize > 2 * xsize or
-            (xsize == 3 and ysize == 3)) return null;
+        if (x + xsize > maze.totalXSize or y + ysize > maze.totalYSize or
+            xsize > 2 * ysize or ysize > 2 * xsize) return null;
 
         return .{
             .pos = .{ .x = x, .y = y },
@@ -53,38 +46,64 @@ const IdConnPoints = std.AutoArrayHashMap(u32, std.ArrayList(Index));
 const SelectedIds = std.AutoArrayHashMap(u32, void);
 const SelectedConnPoints = std.AutoArrayHashMap(Index, void);
 const RoomList = std.ArrayList(Room);
-const GenRoomMaxTestTimes = TotalXSize * TotalYSize / 2;
 
+// TotalXSize, TotalYSize 是奇数
+totalXSize: u32,
+totalYSize: u32,
+roomMaxSize: i32,
+roomMinSize: i32,
+genRoomMaxTestTimes: u32, // TotalXSize * TotalYSize / 2,
+isTestPerformance: bool = false,
 board: []Tag,
 roomList: RoomList,
 idConnPoints: IdConnPoints,
 stageTimeMap: StageTimeMap,
 globalCounter: u32,
 xoroshiro: Xoroshiro,
+random: std.Random,
 
 const Self = @This();
 
-pub fn init(allocator: Allocator, seed: u64) !Maze {
-    const board = try allocator.alloc(Tag, TotalYSize * TotalXSize);
+pub fn init(
+    allocator: Allocator,
+    totalXSize: u32,
+    totalYSize: u32,
+    roomMinSize: i32,
+    roomMaxSize: i32,
+    seed: u64,
+) !Maze {
+    if (isEven(totalXSize)) return error.TotalXSize_Need_Odd;
+    if (isEven(totalYSize)) return error.TotalYSize_Need_Odd;
+    if (roomMinSize < 3) return error.RoomMinSize_Must_Greater_Than_2;
+    if (roomMaxSize <= roomMinSize) return error.RoomMaxSize_Must_Greater_Than_RoomMinSize;
+    const board = try allocator.alloc(Tag, totalXSize * totalYSize);
     const roomList = RoomList.init(allocator);
     const idcp = IdConnPoints.init(allocator);
     const xx = Xoroshiro.init(seed);
-    return .{
+    var stru: Self = .{
+        .totalXSize = totalXSize,
+        .totalYSize = totalYSize,
+        .roomMinSize = roomMinSize,
+        .roomMaxSize = roomMaxSize,
+        .genRoomMaxTestTimes = totalXSize * totalYSize / 2,
         .board = board,
         .roomList = roomList,
         .idConnPoints = idcp,
         .stageTimeMap = undefined,
         .globalCounter = 0,
         .xoroshiro = xx,
+        .random = undefined,
     };
+    stru.random = stru.xoroshiro.random();
+    return stru;
 }
 
 pub inline fn writeBoard(self: *Self, idx: Index, tag: Tag) void {
-    self.board[idx.toPoint()] = tag;
+    self.board[idx.toPoint(self)] = tag;
 }
 
 pub inline fn readBoard(self: *const Self, idx: Index) Tag {
-    return self.board[idx.toPoint()];
+    return self.board[idx.toPoint(self)];
 }
 pub fn idConnPointsInsert(self: *Self, a: u32, b: Index, allocator: Allocator) !void {
     if (self.idConnPoints.getPtr(a)) |hmp| {
@@ -120,12 +139,10 @@ pub fn genMazes(self: *Self, allocator: Allocator) !void {
         self.stageTimeMap.clean();
         self.roomList.clearAndFree();
     }
-
-    if (IsTestPerformance) self.xoroshiro.seed(1234);
-    const random = self.xoroshiro.random();
+    if (self.isTestPerformance) self.xoroshiro.seed(1234);
 
     const t2 = std.time.milliTimestamp();
-    try self.genRoomList(random);
+    try self.genRoomList();
     const t3 = std.time.milliTimestamp();
     self.stageTimeMap.put(.generateRoom, t3 - t2);
     const tmpRooms = self.globalCounter;
@@ -134,8 +151,8 @@ pub fn genMazes(self: *Self, allocator: Allocator) !void {
     const t4 = std.time.milliTimestamp();
     var stack = Stack(IndexAndDirection).init(allocator);
     defer stack.clean();
-    for (1..TotalYSize) |y| {
-        for (1..TotalXSize) |x| {
+    for (1..self.totalYSize) |y| {
+        for (1..self.totalXSize) |x| {
             const index = Index.from_uszie_xy(x, y);
             if (checkSurrEight(self, index)) {
                 stack.clean();
@@ -164,7 +181,7 @@ pub fn genMazes(self: *Self, allocator: Allocator) !void {
     defer selecConnPoints.deinit();
 
     const rsize: i32 = @intCast(self.roomList.items.len);
-    const v: usize = @intCast(random.intRangeAtMost(i32, 0, rsize - 1));
+    const v: usize = @intCast(self.random.intRangeAtMost(i32, 0, rsize - 1));
     const troom = self.roomList.items[v];
     const kx: usize = @intCast(troom.pos.x);
     const ky: usize = @intCast(troom.pos.y);
@@ -177,14 +194,13 @@ pub fn genMazes(self: *Self, allocator: Allocator) !void {
     try self.genTree(
         &selecIds,
         &selecConnPoints,
-        random,
     );
     const t9 = std.time.milliTimestamp();
     self.stageTimeMap.put(.generateTree, t9 - t8);
 
     const t10 = std.time.milliTimestamp();
-    for (1..TotalYSize) |y| {
-        for (1..TotalXSize) |x| {
+    for (1..self.totalYSize) |y| {
+        for (1..self.totalXSize) |x| {
             var idx = Index.from_uszie_xy(x, y);
             while (self.surrSum(idx)) |nIdx| {
                 idx = nIdx;
@@ -214,7 +230,7 @@ pub fn genMazes(self: *Self, allocator: Allocator) !void {
     }
     std.debug.print("total time: {d}ms\n", .{totalTime});
 
-    if (IsTestPerformance) {
+    if (self.isTestPerformance) {
         try recordPerformance(self, allocator);
     }
 }
@@ -289,9 +305,9 @@ pub fn recordPerformance(self: *const Self, allocator: Allocator) !void {
     }
 }
 
-pub fn genRoomList(self: *Self, random: std.Random) !void {
-    blk: for (0..GenRoomMaxTestTimes) |_| {
-        if (Room.genRoom(random)) |room| {
+pub fn genRoomList(self: *Self) !void {
+    blk: for (0..self.genRoomMaxTestTimes) |_| {
+        if (Room.genRoom(self)) |room| {
             const ty: usize = @intCast(room.pos.y);
             const tx: usize = @intCast(room.pos.x);
             for (0..@intCast(room.size.ySize)) |dy| {
@@ -321,7 +337,7 @@ pub fn surrSum(self: *Self, idx: Index) ?Index {
             var tmp: Index = undefined;
             for (Direction.Four_directions) |dir| {
                 const nIdx = idx.addDirection(dir);
-                if (!nIdx.inBoard()) continue;
+                if (!nIdx.inBoard(self)) continue;
                 switch (self.readBoard(nIdx)) {
                     .room, .path, .connPoint => {
                         tmp = nIdx;
@@ -343,11 +359,10 @@ pub fn genTree(
     self: *Self,
     sIdSet: *SelectedIds,
     sConnPointSet: *SelectedConnPoints,
-    random: std.Random,
 ) !void {
     while (sConnPointSet.count() != 0) {
         const keys = sConnPointSet.keys();
-        const ti = random.intRangeAtMost(usize, 0, keys.len - 1);
+        const ti = self.random.intRangeAtMost(usize, 0, keys.len - 1);
         const sedConnIndex = keys[ti];
         const tmpv = self.readBoard(sedConnIndex).connPoint;
         var newId: u32 = undefined;
@@ -364,8 +379,8 @@ pub fn genTree(
             if (sConnPointSet.get(cp)) |_| {
                 _ = sConnPointSet.swapRemove(cp);
                 if (cp.eq(sedConnIndex)) {} else {
-                    const tmpk = random.intRangeAtMost(i32, 1, 100);
-                    if (tmpk > 97) {} else {
+                    const tmpk = self.random.intRangeAtMost(i32, 1, 100);
+                    if (tmpk > 95) {} else {
                         self.writeBoard(cp, .blank);
                     }
                 }
@@ -378,8 +393,8 @@ pub fn genTree(
 }
 
 pub fn findConnPoint(self: *Self, allocator: Allocator) !void {
-    for (1..TotalYSize) |y| {
-        for (1..TotalXSize) |x| {
+    for (1..self.totalYSize) |y| {
+        for (1..self.totalXSize) |x| {
             const idx = Index.from_uszie_xy(x, y);
             if (self.readBoard(idx) != .blank) continue;
             var result: i32 = 0;
@@ -387,7 +402,7 @@ pub fn findConnPoint(self: *Self, allocator: Allocator) !void {
             var idIndex: usize = 0;
             for (Direction.Four_directions) |dir| {
                 const nIdx = idx.addDirection(dir);
-                if (!nIdx.inBoard()) continue;
+                if (!nIdx.inBoard(self)) continue;
                 switch (self.readBoard(nIdx)) {
                     .room => |r| {
                         idArr[idIndex] = r;
@@ -430,7 +445,7 @@ pub fn floodFilling(self: *Self, stack: *Stack(IndexAndDirection)) !void {
 
         for (tdirs) |dir| {
             const nIndex = start.index.addDirection(dir);
-            if (!nIndex.inBoard()) continue :blk0;
+            if (!nIndex.inBoard(self)) continue :blk0;
             if (self.readBoard(nIndex) != .blank) continue :blk0;
         }
 
@@ -440,7 +455,7 @@ pub fn floodFilling(self: *Self, stack: *Stack(IndexAndDirection)) !void {
             const dirs = Direction.Direction_of_widening_and_thickening[@mod(ti + i * 2 + 1, 4)];
             const dir = dirs[0];
             const nIndex = start.index.addDirection(dir);
-            if (!nIndex.inBoard()) continue;
+            if (!nIndex.inBoard(self)) continue;
             if (self.readBoard(nIndex) != .blank) continue;
             const np = start.index.addDirection(dir);
             try stack.push(.{ .index = np, .direction = dir });
@@ -457,15 +472,15 @@ pub fn checkSurrEight(self: *const Self, index: Index) bool {
     if (self.readBoard(index) != .blank) return false;
     for (Direction.Eight_directions) |dir| {
         const nIndex = index.addDirection(dir);
-        if (!nIndex.inBoard()) return false;
+        if (!nIndex.inBoard(self)) return false;
         if (self.readBoard(nIndex) != .blank) return false;
     }
     return true;
 }
 
 fn cleanBoard(self: *Self) void {
-    for (0..TotalYSize) |y| {
-        for (0..TotalXSize) |x| {
+    for (0..self.totalYSize) |y| {
+        for (0..self.totalXSize) |x| {
             const idx = Index.from_uszie_xy(x, y);
             self.writeBoard(idx, .blank);
         }
@@ -480,8 +495,8 @@ pub const Index = struct {
         return .{ .x = x, .y = y };
     }
 
-    pub inline fn toPoint(self: Index) usize {
-        return @intCast(self.x + self.y * TotalXSize);
+    pub inline fn toPoint(self: Index, maze: *const Maze) usize {
+        return @intCast(self.x + self.y * @as(i32, @intCast(maze.totalXSize)));
     }
 
     pub inline fn eq(self: Index, other: Index) bool {
@@ -496,8 +511,8 @@ pub const Index = struct {
         return .{ .x = @intCast(x), .y = @intCast(y) };
     }
 
-    pub inline fn inBoard(self: Index) bool {
-        if (self.x < 0 or self.x >= TotalXSize or self.y < 0 or self.y >= TotalYSize) {
+    pub inline fn inBoard(self: Index, maze: *const Maze) bool {
+        if (self.x < 0 or self.x >= maze.totalXSize or self.y < 0 or self.y >= maze.totalYSize) {
             return false;
         } else {
             return true;
@@ -511,6 +526,10 @@ pub const Index = struct {
         };
     }
 };
+
+fn isEven(v: u32) bool {
+    return if (@mod(v, 2) == 0) true else false;
+}
 
 pub const IndexAndDirection = struct {
     index: Index,
