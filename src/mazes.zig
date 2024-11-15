@@ -8,8 +8,8 @@ const Xoroshiro = std.Random.Xoroshiro128;
 
 pub const IsTestPerformance = false;
 // TotalXSize, TotalYSize 是奇数
-pub const TotalXSize = if (IsTestPerformance) 2041 else 141;
-pub const TotalYSize = if (IsTestPerformance) 2041 else 141;
+pub const TotalXSize: u32 = if (IsTestPerformance) 2041 else 141;
+pub const TotalYSize: u32 = if (IsTestPerformance) 2041 else 141;
 const RoomMaxSize = 7;
 
 const Size = struct {
@@ -139,10 +139,10 @@ pub const Room = struct {
 };
 
 pub const Tag = union(enum) {
-    room: usize,
+    room: u32,
     blank,
-    path: usize,
-    connPoint: [2]usize,
+    path: u32,
+    connPoint: [2]u32,
 };
 
 pub const Index = struct {
@@ -230,8 +230,8 @@ const StageTimeMap = struct {
     }
 };
 
-const IdConnPoints = std.AutoArrayHashMap(usize, std.ArrayList(Index));
-const SelectedIds = std.AutoArrayHashMap(usize, void);
+const IdConnPoints = std.AutoArrayHashMap(u32, std.ArrayList(Index));
+const SelectedIds = std.AutoArrayHashMap(u32, void);
 const SelectedConnPoints = std.AutoArrayHashMap(Index, void);
 const RoomList = std.ArrayList(Room);
 const GenRoomMaxTestTimes = TotalXSize * TotalYSize / 2;
@@ -241,7 +241,7 @@ pub const Board = struct {
     roomList: RoomList,
     idConnPoints: IdConnPoints,
     stageTimeMap: StageTimeMap,
-    globalCounter: usize,
+    globalCounter: u32,
     xoroshiro: Xoroshiro,
 
     const Self = @This();
@@ -268,7 +268,7 @@ pub const Board = struct {
     pub inline fn readBoard(self: *const Self, idx: Index) Tag {
         return self.board[@as(usize, @intCast(idx.y))][@as(usize, @intCast(idx.x))];
     }
-    pub fn idConnPointsInsert(self: *Self, a: usize, b: Index, allocator: Allocator) !void {
+    pub fn idConnPointsInsert(self: *Self, a: u32, b: Index, allocator: Allocator) !void {
         if (self.idConnPoints.getPtr(a)) |hmp| {
             try hmp.append(b);
         } else {
@@ -528,7 +528,7 @@ pub const Board = struct {
             const ti = random.intRangeAtMost(usize, 0, keys.len - 1);
             const sedConnIndex = keys[ti];
             const tmpv = self.readBoard(sedConnIndex).connPoint;
-            var newId: usize = undefined;
+            var newId: u32 = undefined;
             if (sIdSet.get(tmpv[0])) |_| {
                 newId = tmpv[1];
             } else if (sIdSet.get(tmpv[1])) |_| {
@@ -585,10 +585,10 @@ pub const Board = struct {
                 }
 
                 if (result == 101 or result == 200) {
-                    const v0 = idArr[0];
-                    const v1 = idArr[1];
+                    const v0: u32 = @intCast(idArr[0]);
+                    const v1: u32 = @intCast(idArr[1]);
 
-                    const tArr = [2]usize{
+                    const tArr = [2]u32{
                         @min(v0, v1),
                         @max(v0, v1),
                     };
@@ -602,11 +602,9 @@ pub const Board = struct {
     }
 
     pub fn floodFilling(self: *Self, stack: *Stack(IndexAndDirection)) !void {
-        const K = Direction.Direction_of_widening_and_thickening;
         blk0: while (stack.pop()) |start| {
-            if (self.readBoard(start.index) != .blank) continue;
             const ti = dirToI(start.direction);
-            const tdirs = K[ti];
+            const tdirs = Direction.Direction_of_widening_and_thickening[ti];
 
             for (tdirs) |dir| {
                 const nIndex = start.index.addDirection(dir);
@@ -616,8 +614,8 @@ pub const Board = struct {
 
             self.writeBoard(start.index, .{ .path = self.globalCounter });
 
-            for (0..4) |i| {
-                const dirs = K[@mod(ti + i + 1, 4)];
+            for (0..2) |i| {
+                const dirs = Direction.Direction_of_widening_and_thickening[@mod(ti + i * 2 + 1, 4)];
                 const dir = dirs[0];
                 const nIndex = start.index.addDirection(dir);
                 if (!nIndex.inBoard()) continue;
@@ -625,6 +623,10 @@ pub const Board = struct {
                 const np = start.index.addDirection(dir);
                 try stack.push(.{ .index = np, .direction = dir });
             }
+            try stack.push(.{
+                .index = start.index.addDirection(start.direction),
+                .direction = start.direction,
+            });
         }
     }
 
