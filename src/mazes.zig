@@ -310,6 +310,8 @@ pub const Board = struct {
         try self.genRoomList(random);
         const t3 = std.time.milliTimestamp();
         self.stageTimeMap.put(.generateRoom, t3 - t2);
+        const tmpRooms = self.globalCounter;
+        std.debug.print("rooms: {d}\n", .{tmpRooms});
 
         const t4 = std.time.milliTimestamp();
         var stack = Stack(IndexAndDirection).init(allocator);
@@ -330,6 +332,7 @@ pub const Board = struct {
         }
         const t5 = std.time.milliTimestamp();
         self.stageTimeMap.put(.floodFill, t5 - t4);
+        std.debug.print("path: {d}\n", .{self.globalCounter - tmpRooms});
 
         const t6 = std.time.milliTimestamp();
         try findConnPoint(self, allocator);
