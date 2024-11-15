@@ -106,3 +106,131 @@ test "stack" {
     try testing.expect(stack.pop().? == 1);
     try testing.expect(stack.pop() == null);
 }
+
+pub const Size = struct {
+    xSize: i32,
+    ySize: i32,
+};
+
+pub const Pos = struct {
+    x: i32,
+    y: i32,
+};
+
+pub const Direction = struct {
+    dirX: i32,
+    dirY: i32,
+
+    const Self = @This();
+
+    pub fn toIndex(dir: Direction) usize {
+        if (dir.dirX == 1 and dir.dirY == 0) {
+            return 0;
+        } else if (dir.dirX == 0 and dir.dirY == -1) {
+            return 1;
+        } else if (dir.dirX == -1 and dir.dirY == 0) {
+            return 2;
+        } else if (dir.dirX == 0 and dir.dirY == 1) {
+            return 3;
+        }
+        unreachable;
+    }
+    pub const Direction_of_widening_and_thickening = [4][3]Direction{
+        [_]Direction{
+            Direction{ .dirX = 1, .dirY = 0 },
+            Direction{ .dirX = 1, .dirY = -1 },
+            Direction{ .dirX = 1, .dirY = 1 },
+        },
+
+        [_]Direction{
+            Direction{ .dirX = 0, .dirY = -1 },
+            Direction{ .dirX = 1, .dirY = -1 },
+            Direction{ .dirX = -1, .dirY = -1 },
+        },
+
+        [_]Direction{
+            Direction{ .dirX = -1, .dirY = 0 },
+            Direction{ .dirX = -1, .dirY = -1 },
+            Direction{ .dirX = -1, .dirY = 1 },
+        },
+
+        [_]Direction{
+            Direction{ .dirX = 0, .dirY = 1 },
+            Direction{ .dirX = 1, .dirY = 1 },
+            Direction{ .dirX = -1, .dirY = 1 },
+        },
+    };
+
+    pub const Four_directions = [_]Direction{
+        Direction{ .dirX = 1, .dirY = 0 },
+        Direction{ .dirX = 0, .dirY = -1 },
+        Direction{ .dirX = -1, .dirY = 0 },
+        Direction{ .dirX = 0, .dirY = 1 },
+    };
+    pub const Eight_directions = [_]Direction{
+        Direction{ .dirX = 1, .dirY = 0 },
+        Direction{ .dirX = 1, .dirY = -1 },
+        Direction{ .dirX = 0, .dirY = -1 },
+        Direction{ .dirX = -1, .dirY = -1 },
+        Direction{ .dirX = -1, .dirY = 0 },
+        Direction{ .dirX = -1, .dirY = 1 },
+        Direction{ .dirX = 0, .dirY = 1 },
+        Direction{ .dirX = 1, .dirY = 1 },
+    };
+};
+
+pub fn genRandomOdd(min: i32, max: i32, random: std.Random) i32 {
+    var v = random.intRangeAtMost(i32, min, max);
+    while (@mod(v, 2) == 0) {
+        v = random.intRangeAtMost(i32, min, max);
+    }
+    return v;
+}
+
+pub const Stage = enum {
+    generateRoom,
+    floodFill,
+    findConnPoint,
+    generateTree,
+    removeSingle,
+    totalTime,
+
+    const Self = @This();
+
+    pub fn show(self: Self) [:0]const u8 {
+        switch (self) {
+            .generateRoom => return "generateRoom",
+            .floodFill => return "floodFill",
+            .findConnPoint => return "findConnPoint",
+            .generateTree => return "generateTree",
+            .removeSingle => return "removeSing",
+            .totalTime => return "totalTime",
+        }
+    }
+
+    pub inline fn to_usize(self: Self) usize {
+        return @intFromEnum(self);
+    }
+};
+
+pub const StageTimeList = [@typeInfo(Stage).@"enum".fields.len]i64;
+
+pub const StageTimeMap = struct {
+    list: StageTimeList,
+
+    const Self = @This();
+
+    pub fn clean(self: *Self) void {
+        for (0..self.list.len) |i| {
+            self.list[i] = 0;
+        }
+    }
+
+    pub fn put(self: *Self, key: Stage, val: i64) void {
+        self.list[key.to_usize()] = val;
+    }
+
+    pub fn get(self: *const Self, key: Stage) i64 {
+        return self.list[key.to_usize()];
+    }
+};

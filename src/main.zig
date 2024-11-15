@@ -1,7 +1,8 @@
 const rl = @import("raylib");
 const std = @import("std");
-const mazes = @import("mazes.zig");
-const Room = mazes.Room;
+const Maze = @import("Maze.zig");
+const data = @import("data.zig");
+const Room = data.Room;
 
 const Color = rl.Color;
 
@@ -31,7 +32,7 @@ const colorList = [_]rl.Color{
     Color.ray_white,
 };
 
-pub fn tagToColor(tag: mazes.Tag) Color {
+pub fn tagToColor(tag: Maze.Tag) Color {
     return switch (tag) {
         .room => |i| colorList[@mod(i, colorList.len)],
         .blank => Color.white,
@@ -53,7 +54,7 @@ pub fn main() anyerror!void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
 
-    var board = try mazes.Board.init(allocator, 1234);
+    var board = try Maze.init(allocator, 1234);
     defer board.dinit(allocator);
 
     try board.genMazes(allocator);
@@ -109,7 +110,7 @@ pub fn main() anyerror!void {
                 for (0..241) |dx| {
                     const x = @as(i32, @intCast(dx));
                     const y = @as(i32, @intCast(dy));
-                    const idx = mazes.Index{ .x = x, .y = y };
+                    const idx = Maze.Index{ .x = x, .y = y };
                     if (!idx.inBoard()) continue;
                     const tag = board.readBoard(idx);
                     switch (tag) {
