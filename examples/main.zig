@@ -57,8 +57,8 @@ pub fn main() anyerror!void {
 
     var board = try Maze.init(
         allocator,
-        41,
-        41,
+        81,
+        81,
         3,
         7,
         0.03,
