@@ -3,6 +3,7 @@ const std = @import("std");
 const Maze = @import("Maze.zig");
 const data = @import("data.zig");
 const Room = data.Room;
+const Allocator = std.mem.Allocator;
 
 const Color = rl.Color;
 
@@ -63,9 +64,9 @@ pub fn main() anyerror!void {
         0.03,
         1234,
     );
-    defer board.dinit(allocator);
+    defer board.deinit(allocator);
 
-    try board.genMazes(allocator);
+    try board.genMaze(allocator);
 
     var camera = rl.Camera3D{
         .position = rl.Vector3.init(0, 10, 5),
@@ -92,7 +93,7 @@ pub fn main() anyerror!void {
         }
 
         if (rl.isKeyPressed(rl.KeyboardKey.key_space)) {
-            try board.genMazes(allocator);
+            try board.genMaze(allocator);
         }
 
         if (rl.isKeyDown(rl.KeyboardKey.key_q)) {

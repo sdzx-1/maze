@@ -55,7 +55,6 @@ roomMinSize: i32,
 genRoomMaxTestTimes: u32, // TotalXSize * TotalYSize / 2,
 // The probability of redundant connection points being retained
 probability: f32,
-isTestPerformance: bool = false,
 board: []Tag,
 roomList: RoomList,
 idConnPoints: IdConnPoints,
@@ -119,7 +118,7 @@ pub fn idConnPointsInsert(self: *Self, a: u32, b: Index, allocator: Allocator) !
     }
 }
 
-pub fn dinit(self: *Self, allocator: Allocator) void {
+pub fn deinit(self: *Self, allocator: Allocator) void {
     var iter2 = self.idConnPoints.iterator();
     while (iter2.next()) |v| {
         v.value_ptr.clearAndFree();
@@ -130,7 +129,7 @@ pub fn dinit(self: *Self, allocator: Allocator) void {
     allocator.free(self.board);
 }
 
-pub fn genMazes(self: *Self, allocator: Allocator) !void {
+pub fn genMaze(self: *Self, allocator: Allocator) !void {
     {
         self.cleanBoard();
         self.globalCounter = 0;
@@ -143,7 +142,6 @@ pub fn genMazes(self: *Self, allocator: Allocator) !void {
         self.stageTimeMap.clean();
         self.roomList.clearAndFree();
     }
-    if (self.isTestPerformance) self.xoroshiro.seed(1234);
 
     const t2 = std.time.milliTimestamp();
     try self.genRoomList();
@@ -233,10 +231,6 @@ pub fn genMazes(self: *Self, allocator: Allocator) !void {
         }
     }
     std.debug.print("total time: {d}ms\n", .{totalTime});
-
-    if (self.isTestPerformance) {
-        try recordPerformance(self, allocator);
-    }
 }
 
 const Record = struct {
@@ -543,7 +537,7 @@ pub const IndexAndDirection = struct {
 test "boadr" {
     const allocator = std.testing.allocator;
     var b1 = try Maze.init(allocator, 51, 41, 3, 8, 0.31, 12345);
-    defer b1.dinit(allocator);
+    defer b1.deinit(allocator);
     try b1.genMazes(allocator);
     printMaze(&b1);
 }
@@ -563,4 +557,11 @@ fn printMaze(self: *const Maze) void {
         }
         std.debug.print("\n", .{});
     }
+}
+
+pub fn testPerformance(allocator: Allocator) !void {
+    var maze = try Maze.init(allocator, 2041, 2041, 3, 7, 0.03, 234);
+    defer maze.deinit(allocator);
+    try maze.genMaze(allocator);
+    try maze.recordPerformance(allocator);
 }
