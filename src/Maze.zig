@@ -538,7 +538,7 @@ test "boadr" {
     const allocator = std.testing.allocator;
     var b1 = try Maze.init(allocator, 51, 41, 3, 8, 0.31, 12345);
     defer b1.deinit(allocator);
-    try b1.genMazes(allocator);
+    try b1.genMaze(allocator);
     printMaze(&b1);
 }
 

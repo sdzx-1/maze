@@ -1,14 +1,14 @@
 const rl = @import("raylib");
 const std = @import("std");
-const Maze = @import("Maze.zig");
-const data = @import("data.zig");
+const Maze = @import("maze").Maze;
+const data = @import("maze").data;
 const Room = data.Room;
 const Allocator = std.mem.Allocator;
 
 const Color = rl.Color;
 
 const colorList = [_]rl.Color{
-    Color.black,
+    Color.blank,
     Color.gray,
     Color.dark_gray,
     Color.yellow,
@@ -57,10 +57,10 @@ pub fn main() anyerror!void {
 
     var board = try Maze.init(
         allocator,
-        141,
-        141,
+        41,
+        41,
         3,
-        14,
+        7,
         0.03,
         1234,
     );
