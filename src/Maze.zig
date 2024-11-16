@@ -534,15 +534,7 @@ pub const IndexAndDirection = struct {
     direction: Direction,
 };
 
-test "boadr" {
-    const allocator = std.testing.allocator;
-    var b1 = try Maze.init(allocator, 51, 41, 3, 8, 0.31, 12345);
-    defer b1.deinit(allocator);
-    try b1.genMaze(allocator);
-    printMaze(&b1);
-}
-
-fn printMaze(self: *const Maze) void {
+pub fn print(self: *const Maze) void {
     for (0..self.totalYSize) |y| {
         for (0..self.totalXSize) |x| {
             const idx = Index.from_uszie_xy(x, y);
@@ -557,6 +549,14 @@ fn printMaze(self: *const Maze) void {
         }
         std.debug.print("\n", .{});
     }
+}
+
+test "boadr" {
+    const allocator = std.testing.allocator;
+    var b1 = try Maze.init(allocator, 51, 41, 3, 8, 0.31, 12345);
+    defer b1.deinit(allocator);
+    try b1.genMaze(allocator);
+    b1.print();
 }
 
 pub fn testPerformance(allocator: Allocator) !void {
