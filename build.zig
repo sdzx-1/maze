@@ -19,7 +19,7 @@ pub fn build(b: *std.Build) void {
 
     // performance
     const pexe = b.addExecutable(.{
-        .name = "roomsAndMazes_p",
+        .name = "maze_perf",
         .root_source_file = b.path("src/performance.zig"),
         .target = target,
         .optimize = .ReleaseFast,
@@ -76,7 +76,7 @@ pub fn build(b: *std.Build) void {
 
     // exe
     const exe = b.addExecutable(.{
-        .name = "roomsAndMazes",
+        .name = "maze-test",
         .root_source_file = b.path("examples/main.zig"),
         .target = target,
         .optimize = optimize,
