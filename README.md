@@ -8,12 +8,22 @@ You can run the demo with the following command:
 ```zig
 zig build run
 ```
+Control:
+
+View: move the mouse
+
+Move: w a s d
+
+Up and down: q e
+
+Generate a new maze: space
+
 
 # Building and using
 ## In an existing project
 Download and add maze as a dependency by running the following command in your project root:
 ```shell
-zig fetch --save git+https://github.com/sdzx-1/mazes.git
+zig fetch --save git+https://github.com/sdzx-1/maze.git
 ```
 
 Then add maze as a dependency and import its modules and artifact in your build.zig:
