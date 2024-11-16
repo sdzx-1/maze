@@ -62,7 +62,7 @@ pub fn build(b: *std.Build) void {
     // add check
     const exe_check = b.addExecutable(.{
         .name = "foo",
-        .root_source_file = b.path("examples//main.zig"),
+        .root_source_file = b.path("examples/main.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -76,7 +76,7 @@ pub fn build(b: *std.Build) void {
 
     // exe
     const exe = b.addExecutable(.{
-        .name = "maze-test",
+        .name = "maze-exe",
         .root_source_file = b.path("examples/main.zig"),
         .target = target,
         .optimize = optimize,

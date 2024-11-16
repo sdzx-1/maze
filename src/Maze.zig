@@ -82,7 +82,7 @@ pub fn init(
     const roomList = RoomList.init(allocator);
     const idcp = IdConnPoints.init(allocator);
     const xx = Xoroshiro.init(seed);
-    var stru: Self = .{
+    return .{
         .totalXSize = totalXSize,
         .totalYSize = totalYSize,
         .roomMinSize = roomMinSize,
@@ -97,8 +97,6 @@ pub fn init(
         .xoroshiro = xx,
         .random = undefined,
     };
-    stru.random = stru.xoroshiro.random();
-    return stru;
 }
 
 pub inline fn writeBoard(self: *Self, idx: Index, tag: Tag) void {
@@ -143,6 +141,7 @@ pub fn genMaze(self: *Self, allocator: Allocator) !void {
         self.roomList.clearAndFree();
     }
 
+    self.random = self.xoroshiro.random();
     const t2 = std.time.milliTimestamp();
     try self.genRoomList();
     const t3 = std.time.milliTimestamp();
@@ -534,15 +533,7 @@ pub const IndexAndDirection = struct {
     direction: Direction,
 };
 
-test "boadr" {
-    const allocator = std.testing.allocator;
-    var b1 = try Maze.init(allocator, 51, 41, 3, 8, 0.31, 12345);
-    defer b1.deinit(allocator);
-    try b1.genMaze(allocator);
-    printMaze(&b1);
-}
-
-fn printMaze(self: *const Maze) void {
+pub fn print(self: *const Maze) void {
     for (0..self.totalYSize) |y| {
         for (0..self.totalXSize) |x| {
             const idx = Index.from_uszie_xy(x, y);
@@ -557,6 +548,14 @@ fn printMaze(self: *const Maze) void {
         }
         std.debug.print("\n", .{});
     }
+}
+
+test "boadr" {
+    const allocator = std.testing.allocator;
+    var b1 = try Maze.init(allocator, 51, 41, 3, 8, 0.31, 12345);
+    defer b1.deinit(allocator);
+    try b1.genMaze(allocator);
+    b1.print();
 }
 
 pub fn testPerformance(allocator: Allocator) !void {
