@@ -167,6 +167,7 @@ pub fn genMaze(self: *Self, allocator: Allocator) !void {
             }
         }
     }
+
     const t5 = std.time.milliTimestamp();
     self.stageTimeMap.put(.floodFill, t5 - t4);
     std.debug.print("path: {d}\n", .{self.globalCounter - tmpRooms});
@@ -183,7 +184,10 @@ pub fn genMaze(self: *Self, allocator: Allocator) !void {
     defer selecConnPoints.deinit();
 
     const rsize: i32 = @intCast(self.roomList.items.len);
+    std.debug.print("info: ----------------------", .{});
+    std.debug.print("\nxx: {any}, mk: {any}\n", .{self.xoroshiro.s, rsize });
     const v: usize = @intCast(self.random.intRangeAtMost(i32, 0, rsize - 1));
+    std.debug.print("\noutput: {any}\n", .{v});
     const troom = self.roomList.items[v];
     const kx: usize = @intCast(troom.pos.x);
     const ky: usize = @intCast(troom.pos.y);
@@ -191,6 +195,7 @@ pub fn genMaze(self: *Self, allocator: Allocator) !void {
 
     try selecIds.put(rid, {});
     for (self.idConnPoints.get(rid).?.items) |value| {
+        // std.debug.print("\n{any}\n", .{value});
         try selecConnPoints.put(value, {});
     }
     try self.genTree(
