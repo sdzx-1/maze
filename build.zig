@@ -1,7 +1,6 @@
 const std = @import("std");
 const this = @This();
 
-
 // Although this function looks imperative, note that its job is to
 // declaratively construct a build graph that will be executed by an external
 // runner.
@@ -48,7 +47,7 @@ pub fn build(b: *std.Build) void {
     run_p_step.dependOn(&run_p_cmd.step);
 
     // example
-    const raylib_dep = b.dependency("raylib-zig", .{
+    const raylib_dep = b.dependency("raylib_zig", .{
         .target = target,
         .optimize = optimize,
     });
@@ -57,7 +56,6 @@ pub fn build(b: *std.Build) void {
     const raygui = raylib_dep.module("raygui"); // raygui module
     const raylib_artifact = raylib_dep.artifact("raylib"); // raylib C library
     const maze = this.getModule(b, target, optimize);
-
 
     // add check
     const exe_check = b.addExecutable(.{

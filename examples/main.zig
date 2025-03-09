@@ -73,7 +73,7 @@ pub fn main() anyerror!void {
         .target = rl.Vector3.init(0, 0, 0),
         .up = rl.Vector3.init(0, 1, 0),
         .fovy = 60,
-        .projection = rl.CameraProjection.camera_perspective,
+        .projection = rl.CameraProjection.perspective,
     };
 
     rl.disableCursor();
@@ -83,24 +83,24 @@ pub fn main() anyerror!void {
     // Main game loop
     while (!rl.windowShouldClose()) { // Detect window close button or ESC key
         // Update
-        camera.update(rl.CameraMode.camera_first_person);
+        camera.update(rl.CameraMode.first_person);
         //----------------------------------------------------------------------------------
         // TODO: Update your variables here
         //----------------------------------------------------------------------------------
 
-        if (rl.isKeyPressed(rl.KeyboardKey.key_p)) {
+        if (rl.isKeyPressed(rl.KeyboardKey.p)) {
             rl.takeScreenshot("result.png");
         }
 
-        if (rl.isKeyPressed(rl.KeyboardKey.key_space)) {
+        if (rl.isKeyPressed(rl.KeyboardKey.space)) {
             try board.genMaze(allocator);
         }
 
-        if (rl.isKeyDown(rl.KeyboardKey.key_q)) {
+        if (rl.isKeyDown(rl.KeyboardKey.q)) {
             camera.position.y -= 0.5;
         }
 
-        if (rl.isKeyDown(rl.KeyboardKey.key_e)) {
+        if (rl.isKeyDown(rl.KeyboardKey.e)) {
             camera.position.y += 0.5;
         }
         // Draw
